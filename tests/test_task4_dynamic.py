@@ -154,6 +154,118 @@ class Task4DynamicPlannerTests(unittest.TestCase):
         self.assertEqual(result.status, Task4PlanStatus.DETOUR)
         self.assertGreaterEqual(result.minimum_clearance_m, 10.0)
 
+    def test_course_boundary_allows_in_bounds_proceed(self):
+        planner = Task4DynamicPlanner(Task4PlannerConfig(
+            course_boundary_ned=(
+                (-30.0, -40.0),
+                (30.0, -40.0),
+                (30.0, 40.0),
+                (-30.0, 40.0),
+            ),
+        ))
+        result = planner.plan(
+            Pose2D(-20.0, -30.0, 0.0),
+            [Pose2D(-20.0, 30.0, 0.0)],
+            self.observation(20.0, 0.0, 0.0, speed=1.0),
+            now_s=100.0,
+        )
+        self.assertEqual(result.status, Task4PlanStatus.PROCEED)
+
+    def test_course_boundary_rejects_detour_outside_boundary(self):
+        boundary = (
+            (-30.0, -30.0),
+            (30.0, -30.0),
+            (30.0, 30.0),
+            (-30.0, 30.0),
+        )
+        planner = Task4DynamicPlanner(Task4PlannerConfig(
+            usv_footprint_radius_m=0.0,
+            uncertainty_margin_m=0.0,
+            prediction_horizon_s=20.0,
+            course_boundary_ned=boundary,
+        ))
+        current = Pose2D(-30.0, 0.0, 0.0)
+        goal = Pose2D(30.0, 0.0, 0.0)
+        observation = self.observation(0.0, -20.0, math.pi / 2, speed=2.0)
+        track = planner.predict_track(observation)
+        candidates = planner._detour_candidates(current, [goal], track)
+        self.assertTrue(candidates)
+        candidate_path = candidates[0][0]
+        self.assertGreaterEqual(
+            planner._path_clearance(candidate_path, track),
+            track.protected_radius_m,
+        )
+        self.assertTrue(
+            any(
+                abs(waypoint.x) > 30.0 or abs(waypoint.y) > 30.0
+                for waypoint in candidate_path
+            )
+        )
+
+        result = planner.plan(
+            current, [goal], observation, now_s=100.0,
+        )
+        self.assertEqual(result.status, Task4PlanStatus.HOLD)
+
+    def test_course_boundary_holds_when_no_detour_fits(self):
+        planner = Task4DynamicPlanner(Task4PlannerConfig(
+            usv_footprint_radius_m=0.0,
+            uncertainty_margin_m=0.0,
+            prediction_horizon_s=20.0,
+            course_boundary_ned=(
+                (-30.0, -30.0),
+                (30.0, -30.0),
+                (30.0, 30.0),
+                (-30.0, 30.0),
+            ),
+        ))
+        result = planner.plan(
+            Pose2D(-30.0, 0.0, 0.0),
+            [Pose2D(30.0, 0.0, 0.0)],
+            self.observation(0.0, -20.0, math.pi / 2, speed=2.0),
+            now_s=100.0,
+        )
+        self.assertEqual(result.status, Task4PlanStatus.HOLD)
+        self.assertEqual(len(result.waypoints), 1)
+
+    def test_course_boundary_rejects_outside_current_position(self):
+        planner = Task4DynamicPlanner(Task4PlannerConfig(
+            course_boundary_ned=(
+                (-10.0, -10.0),
+                (10.0, -10.0),
+                (10.0, 10.0),
+                (-10.0, 10.0),
+            ),
+        ))
+        result = planner.plan(
+            Pose2D(20.0, 0.0, 0.0),
+            [Pose2D(0.0, 0.0, 0.0)],
+            self.observation(-20.0, 0.0, 0.0),
+            now_s=100.0,
+        )
+        self.assertEqual(result.status, Task4PlanStatus.ABORT)
+        self.assertIn("outside the configured course boundary", result.reason)
+
+    def test_course_boundary_checks_entire_path_segment(self):
+        planner = Task4DynamicPlanner(Task4PlannerConfig(
+            course_boundary_ned=(
+                (0.0, 0.0),
+                (4.0, 0.0),
+                (4.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 4.0),
+                (0.0, 4.0),
+            ),
+        ))
+        result = planner.plan(
+            Pose2D(0.5, 3.0, 0.0),
+            [Pose2D(3.0, 0.5, 0.0)],
+            self.observation(-20.0, -20.0, 0.0),
+            now_s=100.0,
+        )
+        self.assertEqual(result.status, Task4PlanStatus.HOLD)
+        self.assertEqual(result.waypoints, (Pose2D(0.5, 3.0, 0.0),))
+
 
 if __name__ == "__main__":
     unittest.main()

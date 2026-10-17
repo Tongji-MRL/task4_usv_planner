@@ -123,6 +123,90 @@ def _segment_distance(
     )
 
 
+def _point_in_polygon(
+    point: Tuple[float, float],
+    polygon: Tuple[Tuple[float, float], ...],
+) -> bool:
+    inside = False
+    for start, end in zip(polygon, polygon[1:] + polygon[:1]):
+        if _on_segment(start, end, point):
+            return True
+        if (start[1] > point[1]) != (end[1] > point[1]):
+            crossing_x = start[0] + (
+                (point[1] - start[1]) * (end[0] - start[0])
+                / (end[1] - start[1])
+            )
+            if crossing_x > point[0]:
+                inside = not inside
+    return inside
+
+
+def _segment_within_polygon(
+    start: Tuple[float, float],
+    end: Tuple[float, float],
+    polygon: Tuple[Tuple[float, float], ...],
+) -> bool:
+    if not _point_in_polygon(start, polygon) or not _point_in_polygon(end, polygon):
+        return False
+
+    direction = (end[0] - start[0], end[1] - start[1])
+    length_squared = direction[0] ** 2 + direction[1] ** 2
+    if length_squared <= _EPSILON:
+        return True
+
+    parameters = [0.0, 1.0]
+    for edge_start, edge_end in zip(polygon, polygon[1:] + polygon[:1]):
+        edge = (
+            edge_end[0] - edge_start[0],
+            edge_end[1] - edge_start[1],
+        )
+        offset = (edge_start[0] - start[0], edge_start[1] - start[1])
+        denominator = direction[0] * edge[1] - direction[1] * edge[0]
+        if abs(denominator) > _EPSILON:
+            parameter = (
+                offset[0] * edge[1] - offset[1] * edge[0]
+            ) / denominator
+            edge_parameter = (
+                offset[0] * direction[1] - offset[1] * direction[0]
+            ) / denominator
+            if (
+                -_EPSILON <= parameter <= 1.0 + _EPSILON
+                and -_EPSILON <= edge_parameter <= 1.0 + _EPSILON
+            ):
+                parameters.append(min(1.0, max(0.0, parameter)))
+        elif abs(offset[0] * direction[1] - offset[1] * direction[0]) <= _EPSILON:
+            for vertex in (edge_start, edge_end):
+                parameter = (
+                    (vertex[0] - start[0]) * direction[0]
+                    + (vertex[1] - start[1]) * direction[1]
+                ) / length_squared
+                if -_EPSILON <= parameter <= 1.0 + _EPSILON:
+                    parameters.append(min(1.0, max(0.0, parameter)))
+
+    parameters.sort()
+    for first, second in zip(parameters, parameters[1:]):
+        if second - first <= _EPSILON:
+            continue
+        fraction = (first + second) / 2.0
+        midpoint = (
+            start[0] + fraction * direction[0],
+            start[1] + fraction * direction[1],
+        )
+        if not _point_in_polygon(midpoint, polygon):
+            return False
+    return True
+
+
+def _path_within_polygon(
+    path: Sequence[Pose2D],
+    polygon: Tuple[Tuple[float, float], ...],
+) -> bool:
+    return bool(path) and all(
+        _segment_within_polygon(_pose_point(start), _pose_point(end), polygon)
+        for start, end in zip(path, path[1:])
+    ) and _point_in_polygon(_pose_point(path[0]), polygon)
+
+
 def _pose_point(pose: Pose2D) -> Tuple[float, float]:
     return pose.x, pose.y
 
@@ -175,6 +259,8 @@ class Task4PlannerConfig:
     ``min_clearance_m`` is kept at or above the handbook's 10 m rule.  The
     vessel footprint and uncertainty terms enlarge the geometric protected
     corridor so the reference point is not treated as a zero-size robot.
+    ``course_boundary_ned``, when set, bounds the planner's returned path;
+    its ordered vertices may either implicitly or explicitly close the polygon.
     """
 
     min_clearance_m: float = 10.0
@@ -185,6 +271,7 @@ class Task4PlannerConfig:
     prediction_step_s: float = 1.0
     max_observation_age_s: float = 5.0
     nominal_usv_speed_mps: float = 1.0
+    course_boundary_ned: Optional[Tuple[Tuple[float, float], ...]] = None
 
     def __post_init__(self) -> None:
         positive = (
@@ -201,6 +288,63 @@ class Task4PlannerConfig:
             value = getattr(self, name)
             if not _finite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and nonnegative")
+        if self.course_boundary_ned is not None:
+            boundary = self.course_boundary_ned
+            if not isinstance(boundary, (tuple, list)) or len(boundary) < 3:
+                raise ValueError("course_boundary_ned must contain at least 3 vertices")
+            normalized = []
+            for vertex in boundary:
+                if not isinstance(vertex, (tuple, list)) or len(vertex) != 2:
+                    raise ValueError("course boundary vertices must be (north, east) pairs")
+                if not all(_finite(coordinate) for coordinate in vertex):
+                    raise ValueError("course boundary coordinates must be finite numbers")
+                normalized.append((float(vertex[0]), float(vertex[1])))
+            if len(normalized) > 1 and normalized[-1] == normalized[0]:
+                normalized.pop()
+            if len(normalized) < 3:
+                raise ValueError("course_boundary_ned must contain at least 3 vertices")
+            polygon = tuple(normalized)
+            if any(
+                _distance(polygon[index], polygon[(index + 1) % len(polygon)]) <= _EPSILON
+                for index in range(len(polygon))
+            ):
+                raise ValueError("course_boundary_ned cannot contain duplicate adjacent vertices")
+            twice_area = sum(
+                first[0] * second[1] - second[0] * first[1]
+                for first, second in zip(polygon, polygon[1:] + polygon[:1])
+            )
+            if abs(twice_area) <= _EPSILON:
+                raise ValueError("course_boundary_ned must enclose a nonzero area")
+            for first_index in range(len(polygon)):
+                first_start = polygon[first_index]
+                first_end = polygon[(first_index + 1) % len(polygon)]
+                for second_index in range(first_index + 1, len(polygon)):
+                    adjacent = (
+                        second_index == first_index + 1
+                        or (first_index == 0 and second_index == len(polygon) - 1)
+                    )
+                    second_start = polygon[second_index]
+                    second_end = polygon[(second_index + 1) % len(polygon)]
+                    if adjacent:
+                        shared = [
+                            vertex for vertex in (first_start, first_end)
+                            if vertex in (second_start, second_end)
+                        ]
+                        if len(shared) != 1:
+                            raise ValueError("course_boundary_ned must be a simple polygon")
+                        first_other = first_start if first_start != shared[0] else first_end
+                        second_other = second_start if second_start != shared[0] else second_end
+                        if (
+                            _on_segment(first_other, shared[0], second_other)
+                            or _on_segment(shared[0], second_other, first_other)
+                        ):
+                            raise ValueError("course_boundary_ned must be a simple polygon")
+                        continue
+                    if _segments_intersect(
+                        first_start, first_end, second_start, second_end,
+                    ):
+                        raise ValueError("course_boundary_ned must be a simple polygon")
+            object.__setattr__(self, "course_boundary_ned", polygon)
 
     @property
     def protected_radius_m(self) -> float:
@@ -351,6 +495,15 @@ class Task4DynamicPlanner:
         except (TypeError, ValueError) as exc:
             return Task4Plan(Task4PlanStatus.INVALID_INPUT, reason=str(exc))
 
+        boundary = self.config.course_boundary_ned
+        if boundary is not None and not _point_in_polygon(
+            _pose_point(current_pose), boundary,
+        ):
+            return Task4Plan(
+                Task4PlanStatus.ABORT,
+                reason="current USV position is outside the configured course boundary",
+            )
+
         age_s = now_s - observation.timestamp
         if age_s < -_EPSILON or age_s > self.config.max_observation_age_s:
             return Task4Plan(
@@ -366,6 +519,16 @@ class Task4DynamicPlanner:
         minimum_clearance = self._path_clearance(original_path, track)
         conflict_time = self._estimate_conflict_time(original_path, track)
         if minimum_clearance >= track.protected_radius_m - _EPSILON:
+            if boundary is not None and not _path_within_polygon(original_path, boundary):
+                return Task4Plan(
+                    Task4PlanStatus.HOLD,
+                    waypoints=(current_pose,),
+                    reason="remaining mission path leaves the configured course boundary",
+                    protected_radius_m=track.protected_radius_m,
+                    minimum_clearance_m=self._point_clearance(
+                        _pose_point(current_pose), track,
+                    ),
+                )
             return Task4Plan(
                 Task4PlanStatus.PROCEED,
                 waypoints=original_path,
@@ -390,6 +553,10 @@ class Task4DynamicPlanner:
         safe_candidates = [
             candidate for candidate in candidates
             if self._path_clearance(candidate[0], track) >= track.protected_radius_m - _EPSILON
+            and (
+                boundary is None
+                or _path_within_polygon(candidate[0], boundary)
+            )
         ]
         if safe_candidates:
             selected_path, side, clearance = min(
@@ -407,10 +574,16 @@ class Task4DynamicPlanner:
             )
 
         if self._point_clearance(_pose_point(current_pose), track) >= track.protected_radius_m - _EPSILON:
+            hold_reason = (
+                "no simple bypass is proven safe; hold at the current safe position"
+                if boundary is None
+                else "no simple bypass satisfies moving-object clearance and course boundary; "
+                "hold at the current safe position"
+            )
             return Task4Plan(
                 Task4PlanStatus.HOLD,
                 waypoints=(current_pose,),
-                reason="no simple bypass is proven safe; hold at the current safe position",
+                reason=hold_reason,
                 protected_radius_m=track.protected_radius_m,
                 minimum_clearance_m=current_clearance,
                 conflict_time_s=conflict_time,
