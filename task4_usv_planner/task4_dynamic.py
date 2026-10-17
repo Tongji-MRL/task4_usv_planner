@@ -294,23 +294,43 @@ class Task4DynamicPlanner:
     def predict_track(
         self,
         observation: MovingObjectObservation,
+        *,
+        age_s: float = 0.0,
     ) -> PredictedObjectTrack:
         if not isinstance(observation, MovingObjectObservation):
             raise TypeError("observation must be a MovingObjectObservation")
-        direction = (math.cos(observation.heading_rad), math.sin(observation.heading_rad))
-        travel = observation.speed_mps * self.config.prediction_horizon_s
-        end = NEDPoint(
-            observation.position_ned.north + direction[0] * travel,
-            observation.position_ned.east + direction[1] * travel,
+        if not _finite(age_s) or age_s < 0:
+            raise ValueError("age_s must be finite and nonnegative")
+
+        direction = (
+            math.cos(observation.heading_rad),
+            math.sin(observation.heading_rad),
+        )
+
+        # First compensate for the time elapsed since the alert was sent.
+        elapsed_travel = observation.speed_mps * age_s
+        current_position = NEDPoint(
+            observation.position_ned.north + direction[0] * elapsed_travel,
+            observation.position_ned.east + direction[1] * elapsed_travel,
             observation.position_ned.down,
         )
+
+        # Then predict forward from the estimated current position.
+        future_travel = (
+            observation.speed_mps * self.config.prediction_horizon_s
+        )
+        end = NEDPoint(
+            current_position.north + direction[0] * future_travel,
+            current_position.east + direction[1] * future_travel,
+            current_position.down,
+        )
+
         return PredictedObjectTrack(
-            start_ned=observation.position_ned,
+            start_ned=current_position,
             end_ned=end,
             horizon_s=self.config.prediction_horizon_s,
             protected_radius_m=self.config.protected_radius_m,
         )
-
     def plan(
         self,
         current_pose: Pose2D,
@@ -338,7 +358,10 @@ class Task4DynamicPlanner:
                 reason="moving-object observation is stale or from the future",
             )
 
-        track = self.predict_track(observation)
+        track = self.predict_track(
+            observation,
+            age_s=max(0.0, age_s),
+        )
         original_path = self._clean_path((current_pose, *mission_waypoints))
         minimum_clearance = self._path_clearance(original_path, track)
         conflict_time = self._estimate_conflict_time(original_path, track)

@@ -30,8 +30,51 @@ class Task4DynamicPlannerTests(unittest.TestCase):
             NEDPoint(north, east, 0.0), heading, speed, timestamp,
         )
 
+    def test_prediction_compensates_for_observation_age(self):
+        track = self.planner.predict_track(
+            self.observation(
+                0.0,
+                0.0,
+                math.pi / 2,
+                speed=2.0,
+            ),
+            age_s=3.0,
+        )
+
+        # Heading pi/2 means East in our NED convention.
+        # In 3 seconds at 2 m/s, the object has already moved 6 m East.
+        self.assertAlmostEqual(track.start_ned.north, 0.0, places=7)
+        self.assertAlmostEqual(track.start_ned.east, 6.0, places=7)
+
+        # Prediction horizon is another 20 seconds:
+        # 6 m + 2 m/s * 20 s = 46 m East.
+        self.assertAlmostEqual(track.end_ned.north, 0.0, places=7)
+        self.assertAlmostEqual(track.end_ned.east, 46.0, places=7)
+
+    def test_plan_uses_compensated_object_position(self):
+        result = self.planner.plan(
+            Pose2D(-30.0, 51.0, 0.0),
+            [Pose2D(30.0, 51.0, 0.0)],
+            self.observation(
+                0.0,
+                0.0,
+                math.pi / 2,
+                speed=2.0,
+                timestamp=97.0,
+            ),
+            now_s=100.0,
+        )
+
+        # Without age compensation the predicted corridor ends at E=40 m,
+        # so this route would appear safe by 1 m.
+        # After compensating the 3-second delay, the corridor reaches E=46 m
+        # before predicting forward, so the original route is unsafe.
+        self.assertEqual(result.status, Task4PlanStatus.DETOUR)
+
     def test_prediction_uses_heading_and_speed(self):
-        track = self.planner.predict_track(self.observation(0.0, 0.0, math.pi / 2, speed=2.0))
+        track = self.planner.predict_track(
+            self.observation(0.0, 0.0, math.pi / 2, speed=2.0)
+        )
         self.assertAlmostEqual(track.end_ned.north, 0.0, places=7)
         self.assertAlmostEqual(track.end_ned.east, 40.0, places=7)
         self.assertAlmostEqual(track.position_at(10.0).east, 20.0, places=7)
