@@ -24,6 +24,8 @@ setup(
     entry_points={
         "console_scripts": [
             "task4_planner_node = task4_usv_ros.task4_planner_node:main",
+            "task4_supervisor_node = task4_usv_ros.task4_supervisor_node:main",
+            "task4_safety_monitor_node = task4_usv_ros.task4_safety_monitor_node:main",
         ],
     },
 )
