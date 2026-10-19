@@ -1,0 +1,65 @@
+# Task 4 USV VRX/Gazebo 闭环仿真完成清单
+
+目标：只完成 RobotX 2026 Task 4 Core tier 的 USV 子流程；先验证 checkpoint、ACK、航行、ready 和 resume，不扩展到 Advanced/Disruptive 避碰规划。
+
+规则依据：2026 Team Handbook，Task 4 Dynamic Incident Response，Core Tier。
+
+## 当前里程碑
+
+- [x] 修复 `ros_gz_sim create` 卡在 `/gazebo/worlds` 的问题
+  - 原因：Gazebo Transport 默认广播无线网卡地址，本机回调端口不可达。
+  - 修复：`run_vrx.sh` 默认设置 `GZ_IP=127.0.0.1`。
+- [x] WAM-V 成功 spawn
+  - `ros_gz_sim create` 返回 `OK creation of entity`。
+- [x] 确认 WAM-V live ROS 接口
+  - `/wamv/pose`：TFMessage 实时数据
+  - `/wamv/joint_states`：实时数据
+  - `/wamv/sensors/gps/gps/fix`：实时数据
+  - `/wamv/sensors/imu/imu/data`：实时数据
+  - 左右 thrust / pos bridge 已建立。
+- [x] 完成 ENU → NED 位姿适配，并接入 Task4 Core node
+  - 新增 `task4_pose_adapter_node`：订阅 `/wamv/pose`，发布
+    `/task4_planner_node/current_pose`。
+  - VRX 当前 `/wamv/pose` 仅有传感器相对变换，适配器自动使用 GPS + IMU
+    备用路径；默认以首个 GPS fix 为 local NED 原点。
+  - Core node 订阅 `/task4_planner_node/current_pose` 作为实时位置输入。
+  - 位姿适配器测试 4/4 通过；Core 子状态机与状态编码测试 12/12 通过。
+- [x] 清理 Core 不需要的旧动态避碰演示和安全距离监视器
+  - 已移除二维回放脚本、视频、摘要和独立动态安全监视节点。
+  - 已移除上一阶段动态 planner、旧 supervisor、moving-object 接口和相关测试。
+  - 当前只保留 Core 状态机、位姿适配器和 ROS 接口；旧动态避碰链路已不再参与 Core。
+- [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → RESUMED
+  - 按 `TASK4.pdf` 实现 checkpoint、ACK、直达目标点、ready 和 resume 记录。
+  - Task4 不保存、不恢复原任务航路；主规划器负责原任务生命周期。
+  - 纯 Python 子状态机测试已覆盖主状态转移；状态/错误编码测试已覆盖 14-bit 往返和错误解码。
+- [x] 接入 Core 任务目标 GPS 点，并转换为本地 NED 目标
+  - `GpsReference` 使用 WAM-V 首个 GPS fix 建立局部原点。
+  - `TASK4_BEGIN.position.latitude/longitude` 转为 NED 目标。
+- [x] 生成“直达目标点”的简单 setpoint
+- [x] 到达目标点后发布 `TASK4_READY`
+- [x] 接收主规划器的 resume 指令并交回控制权
+  - `task4_core_node` 已接入 `/tongji_mrl/twave/task_cmd`、`checkpoint`、`progress`。
+- [x] 添加最低限度的停止/越界保护
+  - 目标超过最大直达距离时拒绝 ACK；默认上限 1000 m，可配置。
+- [x] 完成 Task 4 状态与错误上报编码
+  - 与 Task 3 复用相同的 14-bit 状态字布局。
+  - `TASK4_ERROR` 统一上报错误码、错误名、重试属性、恢复动作、细节和 `command_seq`。
+- [ ] 在 VRX 中完成 Core 闭环验证并记录状态
+- [x] 在 VRX 中完成 Core 协议冒烟验证
+  - 真实 WAM-V + GPS/IMU 位姿适配器 + `task4_core_node` 已输出
+    `TASK4_ACK`、`TASK4_READY`，并确认 `TRANSIT` 状态。
+  - 本次用当前 GPS 位置作为目标，验证的是协议和子状态机，不代表非零距离
+    航行控制器已经完成。
+
+以下内容暂不属于当前 Core 交付范围：移动目标预测、绕行候选点、最小安全距离证明、Advanced keep-out 区域和 Disruptive 级复杂避碰。
+
+## 验收记录
+
+| 项目 | 结果 | 证据 |
+| --- | --- | --- |
+| Gazebo Transport 回调 | PASS | `GZ_IP=127.0.0.1` 后 world-list 请求成功 |
+| WAM-V spawn | PASS | `OK creation of entity` |
+| WAM-V live pose | PASS | `/wamv/pose` 有实时 TFMessage |
+| WAM-V live sensors | PASS | joint states / GPS / IMU 均可 `ros2 topic echo --once` |
+| ENU→NED pose adapter | PASS | GPS/IMU fallback 发布 `Pose2D`，planner subscription count=1 |
+| WAM-V 动力控制 | TODO | 左右 thrust / pos ROS→Gazebo bridge 已建立，尚未接入闭环控制器 |

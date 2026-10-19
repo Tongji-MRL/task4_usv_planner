@@ -1,105 +1,48 @@
-# Task 4 ROS 2 adapter
+# Task 4 Core ROS adapter
 
-`task4_usv_ros` is a ROS 2 Humble `ament_python` wrapper around the pure
-Python `task4_usv_planner` package. It only accepts planning inputs and
-publishes planner output; it does not send vehicle commands or connect to
-Gazebo, VRX, MAVROS, OCS, protobuf, or a controller.
+这个 ROS 包当前提供 Task 4 Core 子状态机和 WAM-V 位姿输入适配器。旧的
+动态避碰 planner、moving-object 接口、复杂 supervisor 和安全距离监视器
+已经移除。
 
-## Topics
+## Core task node
 
-The node is named `task4_planner_node`. Its private topics resolve under
-`/task4_planner_node`:
-
-| Topic | Type | Contract |
-| --- | --- | --- |
-| `~/current_pose` | `geometry_msgs/msg/Pose2D` | `x=north_m`, `y=east_m`, `theta=yaw_rad` |
-| `~/mission_path` | `nav_msgs/msg/Path` | Each pose uses `position.x=north_m`, `position.y=east_m`; orientation supplies yaw |
-| `~/moving_object` | `std_msgs/msg/String` | JSON object: `north_m`, `east_m`, optional `down_m`, `heading_rad`, `speed_mps`, `timestamp_s` |
-| `~/plan` | `std_msgs/msg/String` | JSON object: `status`, `planned_waypoints` (`north_m`, `east_m`, `yaw_rad`), `reason`, `minimum_clearance_m` |
-
-The moving-object timestamp and the node clock must use the same time basis.
-The adapter reads current time from the ROS clock, so `use_sim_time` may be
-enabled by the caller when appropriate. `course_boundary_ned` is an optional
-JSON-string ROS parameter containing ordered `[north_m, east_m]` vertices,
-for example `[[0, 0], [100, 0], [100, 50], [0, 50]]`.
-
-The node publishes a new plan when any input is updated, once all three inputs
-have been received. Malformed input is reported to the ROS logger and is not
-used. Planner results, including `INVALID_INPUT`, are published as output.
-
-## Task 4 supervisor
-
-Run the separate supervisor with:
+`task4_core_node` 使用 `std_msgs/msg/String` JSON 话题接收
+`/tongji_mrl/twave/task_cmd`，并发布 checkpoint、progress、状态和直达
+setpoint。它支持 PDF 中的 `TASK4_BEGIN`、`TASK4_ACK`、`TASK4_READY` 和
+`resume` 流程。默认使用 WAM-V 首个 GPS fix 作为本地 NED 原点；如果已有
+progress 程序，应通过 `checkpoint_file` 参数提供其 JSON checkpoint 文件，
+否则使用 `checkpoint_task` 和 `checkpoint_progress` 参数。默认到达半径为
+5 m，最大直达距离为 1000 m，可通过 `arrival_radius_m` 和
+`max_transit_distance_m` 调整。
 
 ```bash
-ros2 run task4_usv_ros task4_supervisor_node
+ros2 run task4_usv_ros task4_core_node
 ```
 
-The supervisor subscribes to `/task4_planner_node/plan` (`std_msgs/msg/String`)
-and publishes `~/state` (`std_msgs/msg/String`) and `~/active_path`
-(`nav_msgs/msg/Path`) under `/task4_supervisor_node`. Planner results map to
-states as follows:
+## VRX WAM-V pose adapter
 
-| Planner status | Supervisor state |
-| --- | --- |
-| `PROCEED` | `TASK4_PROCEED` |
-| `DETOUR` | `TASK4_DETOUR` |
-| `HOLD` | `TASK4_HOLD` |
-| `EMERGENCY_ESCAPE` | `TASK4_ESCAPE` |
-| `ABORT` | `TASK4_ABORT` |
-| `INVALID_INPUT` | `TASK4_HOLD` |
+`task4_pose_adapter_node` 订阅：
 
-`PROCEED`, `DETOUR`, and `EMERGENCY_ESCAPE` replace the active path with the
-planner's `planned_waypoints`. For `HOLD` (including `INVALID_INPUT`) and
-`ABORT`, the supervisor publishes an empty path, explicitly clearing any
-previous detour or escape path. The path frame is `ned`; `position.x`,
-`position.y`, and orientation yaw carry north, east, and yaw respectively.
-Unknown or malformed planner results also fail safe to `TASK4_HOLD` with an
-empty path. The initial state is `NORMAL` with an empty path. There is no
-automatic transition back to `NORMAL` in this phase, and the supervisor never
-publishes speed, thrust, or flight-controller commands.
+- `/wamv/pose` (`tf2_msgs/msg/TFMessage`)
+- `/wamv/sensors/gps/gps/fix` (`sensor_msgs/msg/NavSatFix`)
+- `/wamv/sensors/imu/imu/data` (`sensor_msgs/msg/Imu`)
 
-## Build and run
-
-From the repository root, with ROS 2 Humble sourced:
+并发布 `/task4_planner_node/current_pose`
+(`geometry_msgs/msg/Pose2D`)。它把 Gazebo ENU 转成 Task 4 使用的本地
+NED，默认以首个 GPS fix 作为局部原点。VRX 当前没有发布 WAM-V 底盘的
+世界位姿时，适配器会自动使用 GPS + IMU fallback。
 
 ```bash
-colcon build --packages-select task4_usv_ros
-source install/setup.bash
-ros2 run task4_usv_ros task4_planner_node
+ros2 run task4_usv_ros task4_pose_adapter_node
 ```
 
-The supervisor can be started alongside the planner node:
+Core 状态机完成后，会将输出 topic 改为对应的 Core planner 输入。
 
-```bash
-ros2 run task4_usv_ros task4_supervisor_node
-```
+## 状态与错误编码
 
-## Independent safety monitor
-
-Run the safety monitor as a separate process:
-
-```bash
-ros2 run task4_usv_ros task4_safety_monitor_node
-```
-
-It independently subscribes to `/task4_planner_node/current_pose`
-(`geometry_msgs/msg/Pose2D`) and `/task4_planner_node/moving_object`
-(`std_msgs/msg/String`, the same local-NED JSON input used by the planner).
-It evaluates at `monitor_rate_hz` (default `10.0 Hz`), compensates the object
-position from `timestamp_s` using its heading and speed, then computes the
-current distance and the minimum distance over `prediction_horizon_s`
-(default `5.0 s`). For the short-horizon forecast, the current USV position is
-held fixed because this input contract does not provide USV velocity.
-
-Parameters are `protected_radius_m` (default `12.0`),
-`warning_radius_m` (default `16.0`), `prediction_horizon_s` (default `5.0`),
-`max_observation_age_s` (default `5.0`), and `monitor_rate_hz` (default
-`10.0`). The warning radius must be greater than the protected radius. The
-node publishes `~/safety_state` (`std_msgs/msg/String`, `SAFE`,
-`REPLAN_REQUIRED`, or `EMERGENCY`), `~/distance_m` and
-`~/predicted_min_distance_m` (`std_msgs/msg/Float64`). Missing, malformed,
-invalid, future-dated, or stale inputs yield `REPLAN_REQUIRED`, with unavailable
-distances represented as NaN. `~/reason` (`std_msgs/msg/String`) explains the
-current result, including invalid-data reasons. This monitor does not modify
-the supervisor state or send any vehicle control commands.
+`task4_usv_planner/task4_status_codec.py` 与 Task 3 使用相同的 14-bit
+诊断布局：`vehicle(1) | task(2) | progress(4) | error(4) | command(3)`。
+正常 progress 的 `error` 为 `null`；非法命令、目标超距、非法 resume 等会在
+`/tongji_mrl/twave/progress` 发布 `TASK4_ERROR`，其中包含 `status_code`、
+`status_bits`、错误名称、重试属性、恢复动作、来源、细节和 `command_seq`。
+这样主规划器可以按 Task 3 的方式解码，而无需解析日志文本。

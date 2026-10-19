@@ -1,44 +1,16 @@
-# Task 4 USV 规划核心
+# Task 4 USV Core
 
-`task4_usv_planner/task4_usv_planner/task4_dynamic.py` 是一个独立于 Task 3 `dock_planner_v0` 的纯 Python 规划核心，不依赖 ROS 2、RoboCommand、protobuf 或执行器。它实现的是 RobotX 2026 Task 4 Disruptive 的 USV 侧第一版几何逻辑，不是最终控制器。
+当前仓库只以 RobotX 2026 Task 4 的 Core tier 为交付目标，且独立于
+Task 3 的 `dock_planner_v0`。
 
-## 输入
+Core 只需要支持：收到指定 GPS 位置的重新任务、读取并上报 checkpoint、
+发送 `TASK4_ACK`、航行到目标点、发送 `TASK4_READY`，再等待主规划器的
+resume 指令。Task4 不负责中断或恢复原任务，也不实现 Advanced/Disruptive
+tier 的移动目标预测、复杂绕行和最小安全距离证明。
 
-- 当前 USV `Pose2D`；
-- 当前 Task1/Task3 剩余航点；
-- 移动水面目标在 USV NED 中的位置、航向、速度和时间戳；
-- 当前时间。
+完成进度见 [VRX闭环仿真完成清单.md](VRX闭环仿真完成清单.md)。
 
-外层以后负责把官方 MovingObjectAlert 的 GPS、heading、speed 转到这个输入契约。当前模块不处理 protobuf、GPS 转换或 ROS topic。
-
-## 规划策略
-
-1. 按匀速直线模型预测目标未来一段时间的位置。
-2. 将预测轨迹膨胀成动态禁入走廊：
-
-   ```text
-   保护半径 = 10 m 规则 + USV 船体包络 + 定位/预测余量
-   ```
-
-3. 如果原任务剩余路径与走廊保持安全距离，返回 `PROCEED`。
-4. 如果发生冲突，分别尝试沿预测轨迹左右两侧绕行，并对整条候选路径做连续线段净距检查。
-5. 如果简单绕行无法证明安全但当前点仍安全，返回 `HOLD`。
-6. 如果当前 USV 已经进入保护走廊，返回 `EMERGENCY_ESCAPE`，优先生成远离目标轨迹的脱离点。
-7. 如果既不能安全绕行也不能安全保持，返回 `ABORT`，由上层执行零速/人工接管策略。
-
-当前设计故意偏保守：把整个预测轨迹当成空间走廊检查，因此不会因为“理论上可以抢在目标前面穿过”而放行。后续有真实船动力学、边界和动态障碍输入后，再把它升级成时空规划器。
-
-## 当前边界
-
-- 目标模型是假设匀速直线运动；
-- 未接入航道边界、静态障碍和 USV 动力学；
-- 左右绕行是可证明安全的少量候选，不是完整全局搜索；
-- `PROCEED` 只代表几何上通过当前预测走廊检查，不代表船一定能跟踪；
-- 观测过期、坐标不一致或目标未来轨迹无法安全解释时，应由上层停止继续沿用旧路径。
-
-运行测试：
-
-```bash
-cd /home/y/robotx_ws/task4_usv_planner
-PYTHONPATH=. python3 -m unittest tests.test_task4_dynamic -v
-```
+上一阶段的动态避碰实现已经移除。当前纯 Python Core 子状态机位于
+`task4_usv_planner/core_state_machine.py`，不依赖 ROS 或 RoboCommand。
+状态字和错误上报位于 `task4_usv_planner/task4_status_codec.py`，沿用 Task 3
+的 14-bit 编码，ROS 节点会把非法命令、目标超距和非法 resume 编码后发布。
