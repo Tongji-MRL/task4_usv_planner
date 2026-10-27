@@ -23,6 +23,7 @@ setup(
     entry_points={
         "console_scripts": [
             "task4_core_node = task4_usv_ros.task4_core_node:main",
+            "task4_controller_node = task4_usv_ros.task4_controller_node:main",
             "task4_pose_adapter_node = task4_usv_ros.task4_pose_adapter_node:main",
         ],
     },

@@ -44,12 +44,19 @@
 - [x] 完成 Task 4 状态与错误上报编码
   - 与 Task 3 复用相同的 14-bit 状态字布局。
   - `TASK4_ERROR` 统一上报错误码、错误名、重试属性、恢复动作、细节和 `command_seq`。
-- [ ] 在 VRX 中完成 Core 闭环验证并记录状态
+- [x] 在 VRX 中完成 Core 闭环验证并记录状态
+  - 真实 WAM-V 使用约 8 m 非零距离目标运行，控制器日志显示距离从
+    `8.00 m` 降到 `5.61 m`，随后状态进入 `TASK4_READY` 并停止左右推力。
+  - 第二次运行 `command_seq=7002` 实时捕获 `TASK4_ACK → TASK4_READY`，
+    中间状态通过 `/task4_core/state` 确认为 `TRANSIT`。
 - [x] 在 VRX 中完成 Core 协议冒烟验证
   - 真实 WAM-V + GPS/IMU 位姿适配器 + `task4_core_node` 已输出
     `TASK4_ACK`、`TASK4_READY`，并确认 `TRANSIT` 状态。
   - 本次用当前 GPS 位置作为目标，验证的是协议和子状态机，不代表非零距离
     航行控制器已经完成。
+- [x] 接入 Core 到 WAM-V 左右推进器的闭环控制器
+  - `task4_controller_node` 消费 `/task4_core/setpoint`，发布左右 Float64 推力。
+  - 仅在 `TASK4_ACK` / `TRANSIT` 驱动，输入超时或 `TASK4_READY` 后自动停车。
 
 以下内容暂不属于当前 Core 交付范围：移动目标预测、绕行候选点、最小安全距离证明、Advanced keep-out 区域和 Disruptive 级复杂避碰。
 
@@ -62,4 +69,4 @@
 | WAM-V live pose | PASS | `/wamv/pose` 有实时 TFMessage |
 | WAM-V live sensors | PASS | joint states / GPS / IMU 均可 `ros2 topic echo --once` |
 | ENU→NED pose adapter | PASS | GPS/IMU fallback 发布 `Pose2D`，planner subscription count=1 |
-| WAM-V 动力控制 | TODO | 左右 thrust / pos ROS→Gazebo bridge 已建立，尚未接入闭环控制器 |
+| WAM-V 动力控制 | PASS | `task4_controller_node` 已接入左右 thrust，非零距离运行后进入 `TASK4_READY` 并停车 |

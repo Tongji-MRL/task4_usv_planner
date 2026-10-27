@@ -19,6 +19,17 @@ progress 程序，应通过 `checkpoint_file` 参数提供其 JSON checkpoint �
 ros2 run task4_usv_ros task4_core_node
 ```
 
+## VRX 闭环控制器
+
+`task4_controller_node` 消费 `/task4_core/setpoint` 和实时 NED 位姿，向
+`/wamv/thrusters/left/thrust`、`/wamv/thrusters/right/thrust` 发布限幅后的
+差分推力。只有 Core 处于 `TASK4_ACK` 或 `TRANSIT` 时才驱动；到达停止半径、
+输入超时、`TASK4_READY` 或 `RESUMED` 时会把左右推力清零。
+
+```bash
+ros2 run task4_usv_ros task4_controller_node
+```
+
 ## VRX WAM-V pose adapter
 
 `task4_pose_adapter_node` 订阅：
@@ -36,7 +47,8 @@ NED，默认以首个 GPS fix 作为局部原点。VRX 当前没有发布 WAM-V 
 ros2 run task4_usv_ros task4_pose_adapter_node
 ```
 
-Core 状态机完成后，会将输出 topic 改为对应的 Core planner 输入。
+Core 状态机、位姿适配器和 VRX 推进器控制器已经连通；正式系统接入时只需
+按现场控制接口替换左右 thrust topic 或控制器实现。
 
 ## 状态与错误编码
 
