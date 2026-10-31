@@ -58,7 +58,7 @@ class CoreTask4Begin:
         longitude_deg: float,
         reference: GpsReference,
         altitude_m: Optional[float] = None,
-        target_vehicle: str = "uav",
+        target_vehicle: str = "usv",
     ) -> "CoreTask4Begin":
         return cls(
             command_seq=command_seq,

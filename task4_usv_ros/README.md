@@ -8,8 +8,12 @@
 
 `task4_core_node` 使用 `std_msgs/msg/String` JSON 话题接收
 `/tongji_mrl/twave/task_cmd`，并发布 checkpoint、progress、状态和直达
-setpoint。它支持 PDF 中的 `TASK4_BEGIN`、`TASK4_ACK`、`TASK4_READY` 和
-`resume` 流程。默认使用 WAM-V 首个 GPS fix 作为本地 NED 原点；如果已有
+setpoint。它支持官方 Core 的 `AssistanceRequest`、`IncidentAck`、
+`ReadinessReport`、`ReadinessConfirm` 链路，同时兼容仿真使用的
+`TASK4_BEGIN`/`resume` 命令。默认输出 `/tongji_mrl/twave/task4_report`（官方
+形状 JSON）和 `/tongji_mrl/twave/vehicle_report`（OCS vehicle-link 信封）。
+正式接入时将 `vehicle_id` 设置为 OCS 声明的 USV ID，并按需设置 `team_id`、
+`run_id`。默认使用 WAM-V 首个 GPS fix 作为本地 NED 原点；如果已有
 progress 程序，应通过 `checkpoint_file` 参数提供其 JSON checkpoint 文件，
 否则使用 `checkpoint_task` 和 `checkpoint_progress` 参数。默认到达半径为
 5 m，最大直达距离为 1000 m，可通过 `arrival_radius_m` 和
@@ -54,7 +58,9 @@ Core 状态机、位姿适配器和 VRX 推进器控制器已经连通；正式�
 
 `task4_usv_planner/task4_status_codec.py` 与 Task 3 使用相同的 14-bit
 诊断布局：`vehicle(1) | task(2) | progress(4) | error(4) | command(3)`。
-正常 progress 的 `error` 为 `null`；非法命令、目标超距、非法 resume 等会在
+正常 progress 的 `error` 为 `null`；非法命令、目标超距、非法确认等会在
 `/tongji_mrl/twave/progress` 发布 `TASK4_ERROR`，其中包含 `status_code`、
 `status_bits`、错误名称、重试属性、恢复动作、来源、细节和 `command_seq`。
-这样主规划器可以按 Task 3 的方式解码，而无需解析日志文本。
+这样主规划器可以按 Task 3 的方式解码，而无需解析日志文本。通信层还会
+拒绝非 USV 目标、旧/重复 command sequence、错误 vehicle ID 和不匹配的
+readiness report sequence。

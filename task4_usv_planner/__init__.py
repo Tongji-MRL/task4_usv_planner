@@ -18,6 +18,16 @@ from .task4_status_codec import (
     Task4Step,
     encode_progress,
 )
+from .task4_communication import (
+    AssistanceRequest,
+    CommunicationEvent,
+    ReadinessConfirm,
+    Task4CommunicationError,
+    Task4CommunicationSession,
+    parse_assistance_request,
+    parse_readiness_confirm,
+    normalize_ocs_command,
+)
 
 __all__ = [
     "CoreCheckpoint",
@@ -35,4 +45,12 @@ __all__ = [
     "Task4StatusCode",
     "Task4Step",
     "encode_progress",
+    "AssistanceRequest",
+    "CommunicationEvent",
+    "ReadinessConfirm",
+    "Task4CommunicationError",
+    "Task4CommunicationSession",
+    "parse_assistance_request",
+    "parse_readiness_confirm",
+    "normalize_ocs_command",
 ]
