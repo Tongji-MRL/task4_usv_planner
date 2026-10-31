@@ -12,7 +12,9 @@ Advanced/Disruptive tier 的移动目标预测、复杂绕行和最小安全距�
 官方链路是 `AssistanceRequest → IncidentAck → ReadinessReport → ReadinessConfirm`；
 RoboCommand 只连接 OCS，USV 不直接连接 RoboCommand。
 
-完成进度见 [VRX闭环仿真完成清单.md](VRX闭环仿真完成清单.md)。
+完成进度见 [VRX闭环仿真完成清单.md](VRX闭环仿真完成清单.md)。实船现场测试请严格按
+[TASK4_FIELD_TEST_RUNBOOK.md](TASK4_FIELD_TEST_RUNBOOK.md) 分阶段执行；该手册明确区分
+Orin Core executor、VRX 专用控制器和当前尚未确认的实船控制接口。
 
 上一阶段的动态避碰实现已经移除。当前纯 Python Core 子状态机位于
 `task4_usv_planner/core_state_machine.py`，不依赖 ROS 或 RoboCommand。

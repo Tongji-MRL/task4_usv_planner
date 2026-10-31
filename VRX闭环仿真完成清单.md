@@ -4,6 +4,21 @@
 
 规则依据：2026 Team Handbook，Task 4 Dynamic Incident Response，Core Tier。
 
+实船测试入口：[TASK4_FIELD_TEST_RUNBOOK.md](TASK4_FIELD_TEST_RUNBOOK.md)。该手册以当前
+Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用于实船。
+
+## 实船待验证
+
+- [ ] 现场网络、SSH/tmux、版本和正式包来源通过手册 P0 检查
+- [ ] 实船 `/fix` 与 `/tongji_mrl/twave/ned_position` 的格式、原点、方向和稳定性确认
+- [ ] Orin 上使用隔离 topic 完成无控制 Core 全链和错误上报验证
+- [ ] OCS、总状态机、地面端、移动端的 ACK/READY/Confirm/RESUMED 闭环验证
+- [ ] 正式 checkpoint 来源、`team_id`、`run_id` 和 vehicle ID 配置确认
+- [ ] `/task4_core/setpoint` 到实船控制器/goto 的接口、唯一控制发布者和反馈闭环确认
+- [ ] 经遥控接管和物理急停门控后完成最小实船自主运动验证
+
+最后两项当前仍受“实船控制接口未确认”阻塞；不得用下面已经通过的 VRX 控制结果代替。
+
 ## 当前里程碑
 
 - [x] 修复 `ros_gz_sim create` 卡在 `/gazebo/worlds` 的问题
