@@ -111,7 +111,7 @@ Task4 LiDAR、目标检测或物体感知节点。当前 Orin Task4 包也没有
 | --- | --- | --- |
 | 测试指挥 | 唯一发令、记录阶段结论、决定继续/停止 | 进行 P2 时不得同时敲命令 |
 | 遥控/急停手 | 全程握遥控器，确认模式、接管、零油门、解锁/上锁 | 不得离船或低头操作电脑 |
-| 电脑操作员 | Windows、SSH、tmux、ROS 只读检查和测试命令 | 不得自行决定开始运动 |
+| 电脑操作员 | Ubuntu 测试电脑、SSH、tmux、ROS 只读检查和测试命令 | 不得自行决定开始运动 |
 | 观察员 | 看船、水域、人员、缆绳和障碍，复述停止口令 | 场地视线不完整时必须单独设置 |
 
 上电前必须现场确认：
@@ -150,16 +150,16 @@ Task4 LiDAR、目标检测或物体感知节点。当前 Orin Task4 包也没有
   `Ctrl+C`。下一步必须使用另一个终端/窗口/分屏。
 - **一次性**：执行完成会返回提示符，可以复用当前终端。
 
-### 3.2 Windows 窗口
+### 3.2 Ubuntu 测试电脑终端
 
 | 编号 | 位置 | 类型 | 命令/用途 | 保持到何时 |
 | --- | --- | --- | --- | --- |
-| W0 | Windows PowerShell | 常驻 | `ssh robotx@192.168.206.66`，登录后进入 `tmux` | 全部 Orin 测试结束 |
-| W1 | Windows CMD | 监视 | `ping -t 192.168.206.66` | 全部测试结束 |
-| W2 | Windows CMD | 监视 | `ping -t 192.168.206.200` | P1 通信结束 |
-| W3 | Windows CMD | 监视 | `ping -t 192.168.206.202` | P1 通信结束 |
+| U0 | Ubuntu Terminal | 常驻 | `ssh robotx@192.168.206.66`，登录后进入 `tmux` | 全部 Orin 测试结束 |
+| U1 | Ubuntu Terminal | 监视 | `ping 192.168.206.66` | 全部测试结束 |
+| U2 | Ubuntu Terminal | 监视 | `ping 192.168.206.200` | P1 通信结束 |
+| U3 | Ubuntu Terminal | 监视 | `ping 192.168.206.202` | P1 通信结束 |
 
-W0 登录后执行以下**一次性**命令：
+U0 登录后执行以下**一次性**命令：
 
 ```bash
 tmux new -s task4_field
@@ -171,7 +171,7 @@ tmux new -s task4_field
 tmux attach -t task4_field
 ```
 
-SSH 中断后重新打开 W0，重新 SSH，再执行 `tmux attach -t task4_field`。不要重启已经在
+SSH 中断后重新打开 U0，重新 SSH，再执行 `tmux attach -t task4_field`。不要重启已经在
 tmux 中运行的节点。
 
 ### 3.3 Orin tmux 窗口
@@ -201,14 +201,14 @@ source /home/robotx/robotx_ws/install/setup.bash
 
 | 进入阶段 | 新启动窗口 | 必须继续保持的窗口 | 可以关闭/复用的窗口 |
 | --- | --- | --- | --- |
-| 网络检查 | W0、W1、W2、W3 | W1、W2、W3 | Windows 一次性网络检查窗口 |
-| Orin 健康/版本 | T0、T5 | W1-W3、T0 | T5 可反复复用 |
-| 定位检查 | T1 | W1-W3、T0、T1 | T5 可复用 |
-| 隔离 dry-run | T2、T3 | W1-W3、T0、T1、T2、T3 | T5 用于一次性发布 |
-| 默认 topic/四端 P1 | 重新启动 T2，启用 T4 | W1-W3、T0、T1、T2、T3、T4 | T5 可复用 |
-| 人工最小位移 P2 | 不新增控制窗口 | W1、T0、T1、T3；遥控手在位 | W2/W3 可按通信需要保留 |
+| 网络检查 | U0、U1、U2、U3 | U1、U2、U3 | Ubuntu 一次性网络检查终端 |
+| Orin 健康/版本 | T0、T5 | U1-U3、T0 | T5 可反复复用 |
+| 定位检查 | T1 | U1-U3、T0、T1 | T5 可复用 |
+| 隔离 dry-run | T2、T3 | U1-U3、T0、T1、T2、T3 | T5 用于一次性发布 |
+| 默认 topic/四端 P1 | 重新启动 T2，启用 T4 | U1-U3、T0、T1、T2、T3、T4 | T5 可复用 |
+| 人工最小位移 P2 | 不新增控制窗口 | U1、T0、T1、T3；遥控手在位 | U2/U3 可按通信需要保留 |
 | 已确认实船控制 P2 | **仅接口负责人确认后**新建 T6-control | 所有安全监视窗口和遥控手 | 未确认接口时不得创建/启动 T6 |
-| 关闭 | 无 | 按第 17 节逐一关闭 | 最后关闭 W1-W3、W0 |
+| 关闭 | 无 | 按第 17 节逐一关闭 | 最后关闭 U1-U3、U0 |
 
 ## 4. 阶段 A：上电前物理检查
 
@@ -228,41 +228,45 @@ source /home/robotx/robotx_ws/install/setup.bash
 
 ## 5. 阶段 B：网络和四端连通
 
-### 5.1 Windows 一次性检查
+### 5.1 Ubuntu 测试电脑一次性检查
 
-位置：Windows。终端：新的 PowerShell/CMD。类型：一次性。执行完可关闭或复用。
+位置：Ubuntu 测试电脑。终端：新的 Terminal。类型：一次性。执行完可关闭或复用。
 
-```powershell
-ipconfig
-ping -n 30 192.168.206.66
-ping -n 30 192.168.206.200
-ping -n 30 192.168.206.202
-Test-NetConnection 192.168.206.66 -Port 22
+```bash
+ip -br address
+ip route
+ping -c 30 192.168.206.66
+ping -c 30 192.168.206.200
+ping -c 30 192.168.206.202
+nc -vz -w 5 192.168.206.66 22
 ```
 
 记录测试电脑的 IPv4 为 `TEST_PC_IP`。不要记录 VPN、虚拟网卡或无关接口地址。
 
-随后启动并保持 W1、W2、W3 三个**监视**窗口：
+若系统没有 `nc`，用 `ssh -o ConnectTimeout=5 robotx@192.168.206.66` 同时验证 SSH 端口和
+登录；成功后输入 `exit`，正式会话仍在 U0 建立。
 
-```bat
-ping -t 192.168.206.66
+随后启动并保持 U1、U2、U3 三个**监视**终端：
+
+```bash
+ping 192.168.206.66
 ```
 
-```bat
-ping -t 192.168.206.200
+```bash
+ping 192.168.206.200
 ```
 
-```bat
-ping -t 192.168.206.202
+```bash
+ping 192.168.206.202
 ```
 
-下一步必须使用 W0 或其他窗口，不能占用 W1-W3。
+下一步必须使用 U0 或其他终端，不能占用 U1-U3。
 
 ### 5.2 SSH 和反向 ping
 
-位置：Windows W0。类型：常驻交互会话。
+位置：Ubuntu U0。类型：常驻交互会话。
 
-```powershell
+```bash
 ssh robotx@192.168.206.66
 ```
 
@@ -655,7 +659,7 @@ Task4 Core 当前没有任务专用执行机构；唯一可能的物理动作是
 
 ## 13. 阶段 J：总状态机、地面端和移动端通信
 
-先停止隔离 dry-run。保持 W1-W3、T0、T1。船仍不上动力。
+先停止隔离 dry-run。保持 U1-U3、T0、T1。船仍不上动力。
 
 ### 13.1 默认 Task4 executor
 
@@ -753,8 +757,8 @@ ACK、重复 publisher 或命令被吞，立即停止本轮并记录为集成阻
 
 | 现象 | 常见原因/只读检查 | 立即停止条件 | 处理 |
 | --- | --- | --- | --- |
-| Windows 找不到 `ssh` | Windows OpenSSH Client 未安装；PowerShell 执行 `Get-Command ssh` | 无法建立受控会话 | 在“可选功能”安装 OpenSSH Client，或使用团队批准的 SSH 客户端；不要关闭现场防火墙代替安装 |
-| 能 ping Orin，但 Orin 不能 ping Windows | Windows 防火墙/网络配置文件阻止 ICMP、地址选错 | P1/P2 禁止继续 | 核对 `ipconfig` 和网络类型；只为当前可信局域网放行 ICMP，修复后重测 30 包 |
+| Ubuntu 找不到 `ssh` | `openssh-client` 未安装；执行 `command -v ssh` | 无法建立受控会话 | 在有网络时执行 `sudo apt install openssh-client`，或使用团队预装的 SSH 客户端；不要关闭现场防火墙代替安装 |
+| 能 ping Orin，但 Orin 不能 ping Ubuntu | Ubuntu 防火墙/nftables 阻止 ICMP、测试电脑 IPv4 选错 | P1/P2 禁止继续 | 核对 `ip -br address`、`ip route`、`sudo ufw status` 和 `sudo nft list ruleset`；只由管理员为当前可信局域网放行，修复后重测 30 包 |
 | 连续丢包/时延突增 | Wi-Fi 干扰、距离、供电、路由器过载 | 任意连续丢包；运动中一次明显链路中断 | 人工接管、断执行器，靠近 AP、检查供电和信道；稳定后从网络阶段重做 |
 | ping 正常但 SSH 端口失败 | sshd 未运行、防火墙、连接数过多 | 无可靠维护通道 | Orin 本地屏幕执行 `sudo systemctl status ssh`、`sudo ss -lntp | grep ':22'`、`sudo journalctl -u ssh -n 50 --no-pager`；由管理员恢复 sshd |
 | `kex_exchange_identification`/SSH 被关闭 | sshd MaxStartups、临时封禁或服务异常 | 同上 | 停止反复重连；Orin 本地检查 ssh 日志，确认后 `sudo systemctl restart ssh` |
@@ -857,14 +861,14 @@ ACK、重复 publisher 或命令被吞，立即停止本轮并记录为集成阻
     tmux kill-session -t task4_field
     ```
 
-11. 退出 W0 SSH；最后在 W1、W2、W3 按 `Ctrl+C`；
+11. 退出 U0 SSH；最后在 U1、U2、U3 按 `Ctrl+C`；
 12. 物理断电并检查推进器停止，复制日志，填写第 16 节结论。
 
 仅关闭 SSH 窗口不会停止 tmux 内的节点；`tmux detach` 也不会停止节点。
 
 ## 18. 明天最先执行的三个阶段
 
-1. **阶段 A-B：**物理安全、Windows 三路持续 ping、SSH/tmux 和双向网络；
+1. **阶段 A-B：**物理安全、Ubuntu 三路持续 ping、SSH/tmux 和双向网络；
 2. **阶段 C-E：**版本/包/构建测试，以及真实 `/fix`、NED、heading/原点检查；
 3. **阶段 F：**隔离 topic、无控制的完整 Core 协议链和安全错误上报。
 
