@@ -12,9 +12,8 @@ from .core_state_machine import (
 )
 from .task4_status_codec import (
     CommonError,
-    PlannerCommand,
-    RecoveryAction,
-    Task4StatusCode,
+    TASK4_ERROR_CATALOG_VERSION,
+    TASK4_ERROR_DEFINITIONS,
     Task4Step,
     encode_progress,
 )
@@ -40,9 +39,8 @@ __all__ = [
     "Pose2D",
     "Task4CoreStateMachine",
     "CommonError",
-    "PlannerCommand",
-    "RecoveryAction",
-    "Task4StatusCode",
+    "TASK4_ERROR_CATALOG_VERSION",
+    "TASK4_ERROR_DEFINITIONS",
     "Task4Step",
     "encode_progress",
     "AssistanceRequest",

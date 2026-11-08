@@ -46,7 +46,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → RESUMED
   - 按 `TASK4.pdf` 实现 checkpoint、ACK、直达目标点、ready 和 resume 记录。
   - Task4 不保存、不恢复原任务航路；主规划器负责原任务生命周期。
-  - 纯 Python 子状态机测试已覆盖主状态转移；状态/错误编码测试已覆盖 14-bit 往返和错误解码。
+  - 纯 Python 子状态机测试已覆盖主状态转移；状态/错误编码测试已覆盖主 FSM 的简单 JSON 契约。
 - [x] 接入 Core 任务目标 GPS 点，并转换为本地 NED 目标
   - `GpsReference` 使用 WAM-V 首个 GPS fix 建立局部原点。
   - `TASK4_BEGIN.position.latitude/longitude` 转为 NED 目标。
@@ -57,8 +57,10 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [x] 添加最低限度的停止/越界保护
   - 目标超过最大直达距离时拒绝 ACK；默认上限 1000 m，可配置。
 - [x] 完成 Task 4 状态与错误上报编码
-  - 与 Task 3 复用相同的 14-bit 状态字布局。
-  - `TASK4_ERROR` 统一上报错误码、错误名、重试属性、恢复动作、细节和 `command_seq`。
+  - 按主状态机实际接口使用简单 JSON 进度：`TASK4_ACK`、`TASK4_TRANSIT`、
+    `TASK4_READY`、`TASK4_RESUMED`。
+  - `TASK4_ERROR` 使用扁平 `error.code`，不再要求主状态机解析 Task 3 的 14-bit 状态字。
+  - 已兼容主状态机的 `ASSISTANCE_REQUEST`、`READINESS_CONFIRM`、`TASK4_BEGIN` 和 `resume`。
 - [x] 在 VRX 中完成 Core 闭环验证并记录状态
   - 真实 WAM-V 使用约 8 m 非零距离目标运行，控制器日志显示距离从
     `8.00 m` 降到 `5.61 m`，随后状态进入 `TASK4_READY` 并停止左右推力。

@@ -236,6 +236,70 @@ def normalize_ocs_command(payload: dict[str, Any]) -> dict[str, Any]:
     raise Task4CommunicationError(f"unsupported OCS command: {command or 'missing command'}")
 
 
+def normalize_main_fsm_command(
+    payload: dict[str, Any],
+    *,
+    vehicle_id: str,
+) -> dict[str, Any]:
+    """Translate the main FSM's simple Task4 command into official shape.
+
+    The main FSM uses a small JSON envelope on ``/twave/task_cmd`` and puts
+    ``ASSISTANCE_REQUEST`` or ``READINESS_CONFIRM`` in ``command.type``.  The
+    Core communication session already validates the official-shaped form, so
+    this adapter only fills the vehicle-id and body fields needed by it.
+    ``TASK4_BEGIN`` and ``resume`` are returned unchanged because they are the
+    local executor commands emitted by the FSM after its own transition.
+    """
+
+    if not isinstance(payload, dict):
+        raise Task4CommunicationError("main FSM command must be an object")
+    if payload.get("task") != "TASK4":
+        raise Task4CommunicationError("main FSM command task must be TASK4")
+    command = payload.get("command")
+    if not isinstance(command, dict):
+        raise Task4CommunicationError("main FSM command must contain an object command")
+    command_type = str(command.get("type", "")).upper()
+    if command_type in {"TASK4_BEGIN", "RESUME"}:
+        return payload
+    if str(payload.get("vehicle", "")).lower() != "usv":
+        raise Task4CommunicationError("main FSM command is not addressed to the USV")
+
+    if command_type == "ASSISTANCE_REQUEST":
+        command_seq = _positive_int(command.get("command_seq"), "command sequence")
+        position = command.get("position")
+        if not isinstance(position, dict):
+            raise Task4CommunicationError("ASSISTANCE_REQUEST.position must be an object")
+        return {
+            "seq": command_seq,
+            "vehicle_id": vehicle_id,
+            "body": {
+                "type": "assistance_request",
+                "position": position,
+                "vehicle_type": "USV",
+            },
+        }
+
+    if command_type == "READINESS_CONFIRM":
+        report_seq = _positive_int(command.get("report_seq"), "report sequence")
+        command_seq = command.get("command_seq")
+        if command_seq is not None:
+            command_seq = _positive_int(command_seq, "command sequence")
+        return {
+            "seq": command_seq or 1,
+            "vehicle_id": vehicle_id,
+            "body": {
+                "type": "readiness_confirm",
+                "report_seq": report_seq,
+                "command_seq": command_seq,
+                "vehicle_id": vehicle_id,
+            },
+        }
+
+    raise Task4CommunicationError(
+        f"unsupported main FSM Task4 command: {command_type or 'missing type'}"
+    )
+
+
 class Task4CommunicationSession:
     """Validate sequencing and build official-shaped OCS report envelopes."""
 
@@ -314,5 +378,6 @@ __all__ = [
     "Task4CommunicationSession",
     "parse_assistance_request",
     "parse_readiness_confirm",
+    "normalize_main_fsm_command",
     "normalize_ocs_command",
 ]

@@ -4,6 +4,7 @@ from task4_usv_planner.task4_communication import (
     Task4CommunicationSession,
     parse_assistance_request,
     parse_readiness_confirm,
+    normalize_main_fsm_command,
     normalize_ocs_command,
 )
 
@@ -106,6 +107,48 @@ class Task4CommunicationTests(unittest.TestCase):
         request = parse_assistance_request(command, expected_vehicle_id="USV1")
         self.assertEqual(request.command_seq, 9)
         self.assertEqual(request.vehicle_type, "USV")
+
+    def test_main_fsm_assistance_command_is_adapted(self):
+        normalized = normalize_main_fsm_command(
+            {
+                "vehicle": "usv",
+                "task": "TASK4",
+                "command": {
+                    "type": "ASSISTANCE_REQUEST",
+                    "command_seq": 17,
+                    "position": {"latitude": 31.2, "longitude": 121.5},
+                },
+            },
+            vehicle_id="USV1",
+        )
+        request = parse_assistance_request(normalized, expected_vehicle_id="USV1")
+        self.assertEqual(request.command_seq, 17)
+        self.assertEqual(request.vehicle_type, "USV")
+
+    def test_main_fsm_readiness_confirm_is_adapted(self):
+        normalized = normalize_main_fsm_command(
+            {
+                "vehicle": "usv",
+                "task": "TASK4",
+                "command": {
+                    "type": "READINESS_CONFIRM",
+                    "command_seq": 17,
+                    "report_seq": 2,
+                },
+            },
+            vehicle_id="USV1",
+        )
+        confirm = parse_readiness_confirm(normalized, expected_vehicle_id="USV1")
+        self.assertEqual(confirm.command_seq, 17)
+        self.assertEqual(confirm.report_seq, 2)
+
+    def test_main_fsm_begin_is_left_for_the_local_executor(self):
+        payload = {
+            "vehicle": "usv",
+            "task": "TASK4",
+            "command": {"type": "TASK4_BEGIN", "command_seq": 17},
+        }
+        self.assertIs(normalize_main_fsm_command(payload, vehicle_id="USV1"), payload)
 
 
 if __name__ == "__main__":

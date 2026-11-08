@@ -56,11 +56,12 @@ Core 状态机、位姿适配器和 VRX 推进器控制器已经连通；正式�
 
 ## 状态与错误编码
 
-`task4_usv_planner/task4_status_codec.py` 与 Task 3 使用相同的 14-bit
-诊断布局：`vehicle(1) | task(2) | progress(4) | error(4) | command(3)`。
-正常 progress 的 `error` 为 `null`；非法命令、目标超距、非法确认等会在
-`/tongji_mrl/twave/progress` 发布 `TASK4_ERROR`，其中包含 `status_code`、
-`status_bits`、错误名称、重试属性、恢复动作、来源、细节和 `command_seq`。
-这样主规划器可以按 Task 3 的方式解码，而无需解析日志文本。通信层还会
-拒绝非 USV 目标、旧/重复 command sequence、错误 vehicle ID 和不匹配的
-readiness report sequence。
+主状态机只读取 `task`、`progress` 和 `error`，所以 `/tongji_mrl/twave/progress`
+使用简单 JSON：正常流程为 `TASK4_ACK → TASK4_TRANSIT → TASK4_READY`，恢复后为
+`TASK4_RESUMED`，正常消息的 `error` 为 `null`。错误消息使用一个扁平的
+`error.code` 字符串，并可附带 `detail`、`step`、`recovery_action` 等诊断字段；
+不再发送 Task 3 的 14-bit `status_code/status_bits`。
+
+通信适配器支持主状态机的 `ASSISTANCE_REQUEST` / `READINESS_CONFIRM`，并保留
+主状态机实际发给 USV 的 `TASK4_BEGIN` / `resume`。通信层仍会拒绝非 USV 目标、
+旧/重复 command sequence、错误 vehicle ID 和不匹配的 readiness report sequence。

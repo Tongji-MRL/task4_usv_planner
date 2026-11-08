@@ -28,6 +28,7 @@ from task4_usv_planner import (
     encode_progress,
     parse_assistance_request,
     parse_readiness_confirm,
+    normalize_main_fsm_command,
     normalize_ocs_command,
 )
 from task4_usv_planner.core_state_machine import CoreState
@@ -139,13 +140,23 @@ class Task4CoreNode(Node):
             payload = json.loads(message.data)
             if not isinstance(payload, dict):
                 return
+            if _looks_like_main_fsm_task4(payload):
+                if str(payload.get("vehicle", "")).lower() != "usv":
+                    return
+                self._handle_official_command(
+                    normalize_main_fsm_command(payload, vehicle_id=self._vehicle_id)
+                )
+                return
             if _looks_like_official_task4(payload):
                 self._handle_official_command(payload)
                 return
             if str(payload.get("vehicle", "")).lower() != "usv":
                 return
             command = payload.get("command")
-            if isinstance(command, dict) and command.get("type") == "TASK4_BEGIN":
+            command_type = str(command.get("type", "")).upper() if isinstance(command, dict) else ""
+            if command_type == "TASK4_BEGIN":
+                if str(command.get("target_vehicle", "usv")).lower() != "usv":
+                    return
                 self._pending_begin = {"envelope": payload, "command": command}
                 self._try_start_pending_begin()
             elif payload.get("command") == "resume":
@@ -274,17 +285,23 @@ class Task4CoreNode(Node):
         except (KeyError, TypeError, ValueError) as exc:
             self.get_logger().error(f"Rejected TASK4_BEGIN: {exc}")
             error = (
-                0b1001
+                CommonError.TARGET_UNREACHABLE
                 if "maximum transit distance" in str(exc)
-                else 0b1000
+                else CommonError.INVALID_INPUT
             )
-            step = Task4Step.GO_TO_TARGET if error == 0b1001 else Task4Step.READY
+            step = (
+                Task4Step.GO_TO_TARGET
+                if error == CommonError.TARGET_UNREACHABLE
+                else Task4Step.READY
+            )
             self._publish_error(
                 str(exc),
                 error=error,
                 step=step,
                 detail_code=(
-                    "TARGET_UNREACHABLE" if error == 0b1001 else "TASK4_BEGIN_INVALID"
+                    "TARGET_UNREACHABLE"
+                    if error == CommonError.TARGET_UNREACHABLE
+                    else "TASK4_BEGIN_INVALID"
                 ),
                 command_seq=_optional_command_seq(command),
             )
@@ -303,7 +320,7 @@ class Task4CoreNode(Node):
             self.get_logger().error(f"Rejected Task4 resume: {exc}")
             self._publish_error(
                 str(exc),
-                error=0b1001,
+                error=CommonError.RESUME_REJECTED,
                 step=Task4Step.WAIT_RESUME,
                 detail_code="RESUME_COMMAND_REJECTED",
                 command_seq=_optional_command_seq(payload),
@@ -373,15 +390,14 @@ class Task4CoreNode(Node):
             output.theta = snapshot.active_setpoint.yaw
             self._setpoint_publisher.publish(output)
         state = String()
-        status = self._status_for_snapshot(snapshot)
         state.data = json.dumps({
             "state": snapshot.state.value,
+            "progress": _progress_for_snapshot(snapshot),
             "command_seq": snapshot.command_seq,
             "reason": snapshot.reason,
             "resume_task": snapshot.resume_task,
             "resume_progress": snapshot.resume_progress,
-            "status_code": status.pack(),
-            "status_bits": status.bit_string(),
+            "error": None,
         }, ensure_ascii=False)
         self._state_publisher.publish(state)
 
@@ -438,12 +454,12 @@ class Task4CoreNode(Node):
         self,
         detail: str,
         *,
-        error: int | CommonError,
-        step: int | Task4Step | None = None,
+        error: str | CommonError,
+        step: str | Task4Step | None = None,
         detail_code: str,
         command_seq: int | None = None,
     ) -> None:
-        """Publish a Task3-compatible structured fault on the progress topic."""
+        """Publish the simple error object consumed by the main FSM."""
 
         snapshot = self._machine.snapshot()
         output = String()
@@ -461,11 +477,14 @@ class Task4CoreNode(Node):
         )
         self._progress_publisher.publish(output)
 
-    @staticmethod
-    def _status_for_snapshot(snapshot: Any):
-        from task4_usv_planner import Task4StatusCode
-
-        return Task4StatusCode(step=_status_step(snapshot.state))
+def _progress_for_snapshot(snapshot: Any) -> str:
+    return {
+        CoreState.IDLE: "TASK4_IDLE",
+        CoreState.TASK4_ACK: "TASK4_ACK",
+        CoreState.TRANSIT: "TASK4_TRANSIT",
+        CoreState.TASK4_READY: "TASK4_READY",
+        CoreState.RESUMED: "TASK4_RESUMED",
+    }[snapshot.state]
 
 
 def _status_step(state: CoreState) -> Task4Step:
@@ -520,6 +539,16 @@ def _looks_like_official_task4(payload: dict[str, Any]) -> bool:
         "readiness_confirm",
         "readinessconfirm",
     }
+
+
+def _looks_like_main_fsm_task4(payload: dict[str, Any]) -> bool:
+    command = payload.get("command")
+    return (
+        payload.get("task") == "TASK4"
+        and isinstance(command, dict)
+        and str(command.get("type", "")).upper()
+        in {"ASSISTANCE_REQUEST", "READINESS_CONFIRM"}
+    )
 
 
 def main(args: Optional[list[str]] = None) -> None:
