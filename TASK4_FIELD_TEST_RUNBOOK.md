@@ -18,7 +18,8 @@
 - `IDLE -> TASK4_ACK -> TRANSIT -> TASK4_READY -> RESUMED`；
 - GPS 目标转本地 NED；
 - checkpoint、progress、状态和结构化错误上报；
-- `/task4_core/setpoint` 直达目标输出；
+- `/task4_core/setpoint` 目标输出；
+- 可选的 LaserScan 反应式避障决策 `/task4_core/avoidance`；
 - OCS 内部 JSON 命令和 `/tongji_mrl/twave/vehicle_report` 上报。
 
 当前仍未确认：
@@ -27,16 +28,18 @@
 - 真实控制反馈、唯一控制发布者和自主停止能力；
 - 正式 checkpoint 来源以及 `team_id`、`run_id`；
 - OCS、总状态机、地面端和移动端的完整端到端链路。
+- 实船 LaserScan 的 frame/角度/单位，以及避障决策是否接入唯一真实控制边界。
 
 仓库里的 `task4_controller_node` 只用于 VRX WAM-V 仿真，发布
-`/wamv/thrusters/*`。**严禁在实船上启动它。** Task4 Core 没有 LiDAR 感知、泵、夹爪或
-喷射执行机构。
+`/wamv/thrusters/*`。**严禁在实船上启动它。** 仓库虽然已有 LaserScan 反应式避障
+监视器，但在实船 frame 和真实控制接入确认前只能只读观察，不得据此放开自主运动。
+Task4 没有泵、夹爪或喷射执行机构。
 
 ## 2. 最高效测试顺序
 
 | 优先级 | 阶段 | 预计时间 | 成功标准 |
 | --- | --- | --- | --- |
-| P0 | 网络、版本、18 项测试 | 5-10 分钟 | SSH 正常、正式包正确、18/18 通过 |
+| P0 | 网络、版本、非控制测试 | 5-10 分钟 | SSH 正常、正式包正确、全部测试通过 |
 | P0 | 真实 `/fix` 和 NED | 5 分钟 | 数据有效、格式正确、静止不明显漂移 |
 | P0 | 隔离 topic 的完整 Core 流程 | 10 分钟 | ACK、READY、Confirm、RESUMED 全部出现 |
 | P1 | 默认 topic + OCS/地面/移动端 | 10-15 分钟 | 双向命令和结果可见，checkpoint 非 UNKNOWN |
@@ -147,14 +150,14 @@ colcon list --base-paths /home/robotx/robotx_ws/src | awk '{print $1}' | sort | 
 - 存在 `task4_executor` 和 `task4_core_node`；
 - 重复包检查无输出。
 
-运行当前 18 项非控制测试：
+运行当前非控制测试：
 
 ```bash
 cd /home/robotx/robotx_ws/src/task4
 PYTHONPATH=. python3 -m unittest discover -s test -v
 ```
 
-期望 `Ran 18 tests` 和 `OK`。
+期望全部测试为 `OK`；测试数量以当前仓库为准，不使用旧的固定数量判断版本。
 
 只有源码刚更新、包找不到或安装版本不一致时才重建，平时不要浪费现场时间：
 
@@ -211,7 +214,8 @@ ros2 launch usv_shared_position shared_position.launch.py
 - 船静止约 10 秒时，N/E 不应明显跳变或持续漂移；
 - 漂移超过约 3 m、方向不明或 JSON 格式不符时，停止控制测试。
 
-Task4 Core 没有其他感知输入，不要启动 Task3 或 LiDAR 节点。
+不要启动 Task3 节点。Task4 自有避障节点只有在确认 LaserScan topic、frame、0 rad 前向、
+左右角度方向和米制距离后才能单独启动；P0 Core 流程不依赖它，也不重复采集点云。
 
 ## 8. P0-3：隔离 topic 的无控制完整流程
 
@@ -435,7 +439,7 @@ ros2 topic info /task4_core/setpoint --verbose
 
 ## 13. 最终只需要回答五个问题
 
-- [ ] Orin 网络、SSH、正式包和 18 项测试是否通过？
+- [ ] Orin 网络、SSH、正式包和当前全部非控制测试是否通过？
 - [ ] `/fix` 和共享 NED 是否真实、稳定、格式正确？
 - [ ] 隔离 Core 是否完成 ACK -> READY -> Confirm -> RESUMED？
 - [ ] OCS、地面端、移动端是否完成双向闭环，checkpoint 是否有效？

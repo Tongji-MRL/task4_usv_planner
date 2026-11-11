@@ -1,8 +1,7 @@
 # Task 4 Core ROS adapter
 
-这个 ROS 包当前提供 Task 4 Core 子状态机和 WAM-V 位姿输入适配器。旧的
-动态避碰 planner、moving-object 接口、复杂 supervisor 和安全距离监视器
-已经移除。
+这个 ROS 包当前提供 Task 4 Core 子状态机、WAM-V 位姿输入适配器和最小反应式
+避障层。旧的 moving-object 接口、复杂动态 planner 和最小安全距离证明已经移除。
 
 ## Core task node
 
@@ -28,11 +27,30 @@ ros2 run task4_usv_ros task4_core_node
 `task4_controller_node` 消费 `/task4_core/setpoint` 和实时 NED 位姿，向
 `/wamv/thrusters/left/thrust`、`/wamv/thrusters/right/thrust` 发布限幅后的
 差分推力。只有 Core 处于 `TASK4_ACK` 或 `TRANSIT` 时才驱动；到达停止半径、
-输入超时、`TASK4_READY` 或 `RESUMED` 时会把左右推力清零。
+输入超时、`TASK4_READY` 或 `RESUMED` 时会把左右推力清零。收到有效避障决策后，
+`HOLD` 清零推力，`REPLAN` 降速并按锁定方向转向；避障决策一旦接入，后续超时也会停车。
 
 ```bash
 ros2 run task4_usv_ros task4_controller_node
 ```
+
+## 反应式避障监视器
+
+`task4_avoidance_node` 默认订阅 `/mavros/obstacle/send`
+(`sensor_msgs/msg/LaserScan`)，只在 `TASK4_ACK` / `TRANSIT` 中发布
+`/task4_core/avoidance`。它不直接发布推进器命令。雷达丢失、扫描无效或过期时发布
+`HOLD`；稳定障碍进入绕行距离时发布 `REPLAN`；紧急距离内发布 `HOLD`。
+
+```bash
+ros2 run task4_usv_ros task4_avoidance_node --ros-args \
+  -p scan_topic:=/mavros/obstacle/send
+
+ros2 run task4_usv_ros task4_controller_node --ros-args \
+  -p avoidance_required:=true
+```
+
+扫描 topic 可以替换，但输入必须是船体前向为 0 rad 的 `LaserScan`；在 frame、角度方向和
+距离单位实测确认前禁止启用运动。该节点只做近场反应式安全，不是全局路径规划。
 
 ## VRX WAM-V pose adapter
 
@@ -51,8 +69,8 @@ NED，默认以首个 GPS fix 作为局部原点。VRX 当前没有发布 WAM-V 
 ros2 run task4_usv_ros task4_pose_adapter_node
 ```
 
-Core 状态机、位姿适配器和 VRX 推进器控制器已经连通；正式系统接入时只需
-按现场控制接口替换左右 thrust topic 或控制器实现。
+Core 状态机、位姿适配器、反应式避障和 VRX 推进器控制器已经连通；正式系统接入时必须
+把避障决策和 setpoint 一起接到唯一实船控制边界，不能只替换 thrust topic 就视为完成。
 
 ## 状态与错误编码
 

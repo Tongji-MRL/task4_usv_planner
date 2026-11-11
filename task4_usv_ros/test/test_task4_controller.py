@@ -1,7 +1,10 @@
 import math
 import unittest
 
-from task4_usv_ros.task4_controller_node import differential_thrust
+from task4_usv_ros.task4_controller_node import (
+    apply_avoidance_to_thrust,
+    differential_thrust,
+)
 
 
 class Task4ControllerTests(unittest.TestCase):
@@ -37,6 +40,48 @@ class Task4ControllerTests(unittest.TestCase):
         self.assertGreaterEqual(right, 0.0)
         self.assertLessEqual(left, 80.0)
         self.assertLessEqual(right, 80.0)
+
+    def test_hold_decision_zeros_thrust(self):
+        self.assertEqual(
+            apply_avoidance_to_thrust(
+                100.0,
+                100.0,
+                action="HOLD",
+                steering_side=None,
+                speed_scale=0.0,
+                max_thrust=300.0,
+                turn_thrust=80.0,
+            ),
+            (0.0, 0.0),
+        )
+
+    def test_replan_steers_to_requested_side_at_reduced_speed(self):
+        left, right = apply_avoidance_to_thrust(
+            200.0,
+            200.0,
+            action="REPLAN",
+            steering_side="LEFT",
+            speed_scale=0.5,
+            max_thrust=300.0,
+            turn_thrust=80.0,
+        )
+        self.assertGreater(left, right)
+        self.assertLessEqual(left, 300.0)
+        self.assertGreaterEqual(right, 0.0)
+
+    def test_invalid_replan_fails_safe(self):
+        self.assertEqual(
+            apply_avoidance_to_thrust(
+                100.0,
+                100.0,
+                action="REPLAN",
+                steering_side=None,
+                speed_scale=0.5,
+                max_thrust=300.0,
+                turn_thrust=80.0,
+            ),
+            (0.0, 0.0),
+        )
 
 
 if __name__ == "__main__":

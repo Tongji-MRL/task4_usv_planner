@@ -15,6 +15,8 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [ ] OCS、总状态机、地面端、移动端的 ACK/READY/Confirm/RESUMED 闭环验证
 - [ ] 正式 checkpoint 来源、`team_id`、`run_id` 和 vehicle ID 配置确认
 - [ ] `/task4_core/setpoint` 到实船控制器/goto 的接口、唯一控制发布者和反馈闭环确认
+- [ ] 实船 LaserScan 的 frame、0 rad 前向、左右方向、距离单位和更新率确认
+- [ ] `/task4_core/avoidance` 在真实控制边界的 HOLD/REPLAN/超时停车接入确认
 - [ ] 经遥控接管和物理急停门控后完成最小实船自主运动验证
 
 最后两项当前仍受“实船控制接口未确认”阻塞；不得用下面已经通过的 VRX 控制结果代替。
@@ -39,10 +41,10 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
     备用路径；默认以首个 GPS fix 为 local NED 原点。
   - Core node 订阅 `/task4_planner_node/current_pose` 作为实时位置输入。
   - 位姿适配器测试 4/4 通过；Core 子状态机、状态编码与通信测试 18/18 通过。
-- [x] 清理 Core 不需要的旧动态避碰演示和安全距离监视器
+- [x] 清理 Core 不需要的旧复杂动态避碰演示和安全距离监视器
   - 已移除二维回放脚本、视频、摘要和独立动态安全监视节点。
   - 已移除上一阶段动态 planner、旧 supervisor、moving-object 接口和相关测试。
-  - 当前只保留 Core 状态机、位姿适配器和 ROS 接口；旧动态避碰链路已不再参与 Core。
+  - 旧动态目标预测和复杂绕行链路不再参与 Core；近场反应式安全层独立实现。
 - [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → RESUMED
   - 按 `TASK4.pdf` 实现 checkpoint、ACK、直达目标点、ready 和 resume 记录。
   - Task4 不保存、不恢复原任务航路；主规划器负责原任务生命周期。
@@ -74,13 +76,18 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [x] 接入 Core 到 WAM-V 左右推进器的闭环控制器
   - `task4_controller_node` 消费 `/task4_core/setpoint`，发布左右 Float64 推力。
   - 仅在 `TASK4_ACK` / `TRANSIT` 驱动，输入超时或 `TASK4_READY` 后自动停车。
+- [x] 增加 Task4 Core 最小反应式避障代码
+  - 复用 Task3 已验证的 LaserScan 前向通道检测思路，不复制 Task3 状态机、topic 或 launch。
+  - 连续帧确认、释放滞回、紧急停车、锁定左右绕行方向和决策有效期均有纯 Python 测试。
+  - `task4_avoidance_node` 只发布 `PROCEED/HOLD/REPLAN`；VRX 控制器在最终推力边界执行。
+  - LaserScan 或决策过期后停车；实船 frame 与控制器接入仍属于现场阻塞项。
 - [x] 接入官方 Task 4 Core 通信链路
   - `task4_communication.py` 支持 `AssistanceRequest → IncidentAck → ReadinessReport → ReadinessConfirm`。
   - `RxCommand.seq` 作为 `command_seq`，USV 独立维护 `RxReport.seq`；严格校验 USV 类型、vehicle ID、重复命令和确认的 `report_seq`。
   - ROS 节点支持官方形状 JSON 和 OCS 已路由的 `task4_assistance` / `task4_readiness_confirm` 信封。
   - 通过 `/tongji_mrl/twave/vehicle_report` 输出 OCS 可接收的 `ack` 与 `task_report.official_report`。
 
-以下内容暂不属于当前 Core 交付范围：移动目标预测、绕行候选点、最小安全距离证明、Advanced keep-out 区域和 Disruptive 级复杂避碰。
+以下内容暂不属于当前 Core 交付范围：全局绕行路径、移动目标预测、绕行候选点、最小安全距离证明、Advanced keep-out 区域和 Disruptive 级复杂避碰。
 
 ## 验收记录
 
@@ -92,5 +99,6 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 | WAM-V live sensors | PASS | joint states / GPS / IMU 均可 `ros2 topic echo --once` |
 | ENU→NED pose adapter | PASS | GPS/IMU fallback 发布 `Pose2D`，planner subscription count=1 |
 | WAM-V 动力控制 | PASS | `task4_controller_node` 已接入左右 thrust，非零距离运行后进入 `TASK4_READY` 并停车 |
+| 反应式避障离线回归 | PASS | 连续帧、单点噪声、紧急停车、方向锁定、释放滞回和推力门控测试通过 |
 | 官方 Task 4 Core 通信适配 | PASS | 18 项纯 Python 测试通过；支持官方 RxCommand JSON 与 OCS vehicle-link 信封 |
 | ROS 包构建与适配器回归 | PASS | `task4_usv_ros` 构建成功，ROS 侧 7 项测试通过 |

@@ -27,6 +27,13 @@ from .task4_communication import (
     parse_readiness_confirm,
     normalize_ocs_command,
 )
+from .reactive_avoidance import (
+    AvoidanceAction,
+    ReactiveAvoidanceConfig,
+    ReactiveAvoidanceCore,
+    ReactiveAvoidanceResult,
+    SteeringSide,
+)
 
 __all__ = [
     "CoreCheckpoint",
@@ -51,4 +58,9 @@ __all__ = [
     "parse_assistance_request",
     "parse_readiness_confirm",
     "normalize_ocs_command",
+    "AvoidanceAction",
+    "ReactiveAvoidanceConfig",
+    "ReactiveAvoidanceCore",
+    "ReactiveAvoidanceResult",
+    "SteeringSide",
 ]
