@@ -17,7 +17,7 @@
 - `AssistanceRequest -> IncidentAck -> ReadinessReport -> ReadinessConfirm`；
 - `IDLE -> TASK4_ACK -> TRANSIT -> TASK4_READY -> RESUMED`；
 - GPS 目标转本地 NED；
-- checkpoint、progress、状态和结构化错误上报；
+- checkpoint 和简化 progress 上报；
 - `/task4_core/setpoint` 目标输出；
 - 可选的 LaserScan 反应式避障决策 `/task4_core/avoidance`；
 - OCS 内部 JSON 命令和 `/tongji_mrl/twave/vehicle_report` 上报。
@@ -292,7 +292,7 @@ ros2 topic pub --once /task4_test/task_cmd std_msgs/msg/String \
 
 1. `incident_ack`；
 2. checkpoint 为 `TASK1/FIELD_TEST`；
-3. progress 出现 `TASK4_ACK` 和 `TASK4_READY`；
+3. progress 依次出现 `TASK4_ACK`、`TASK4_TRANSIT` 和最终的 `TASK4_FINISH`；
 4. state 经过 `TASK4_ACK -> TRANSIT -> TASK4_READY`；
 5. task4_report 出现 `readiness`。
 
@@ -412,7 +412,7 @@ ros2 topic info /task4_core/setpoint --verbose
 | 有重复包/节点 | 停止重复实例；不要删除未知目录，不要 source 旧工作区 |
 | `/fix` 无输出 | 查 MAVROS/GNSS；禁止继续 Task4 和运动 |
 | NED 无输出 | 启动或检查 `usv_shared_position`；确认 JSON 是 north/east 对象 |
-| 有 IncidentAck 但没有 TASK4_ACK | 通常是 `/fix` 或 NED 尚未就绪，检查 executor 日志 |
+| 有 IncidentAck 但没有 `TASK4_ACK` progress | 通常是 `/fix` 或 NED 尚未就绪，检查 executor 日志 |
 | 卡在 TRANSIT | 检查当前 NED、目标和原点；不要靠扩大正式到达半径掩盖问题 |
 | Confirm 被拒绝 | 使用实际 readiness `seq`，不要猜 report seq |
 | 重复命令被拒绝 | 重启 executor 或使用递增 command seq |

@@ -40,7 +40,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
   - VRX 当前 `/wamv/pose` 仅有传感器相对变换，适配器自动使用 GPS + IMU
     备用路径；默认以首个 GPS fix 为 local NED 原点。
   - Core node 订阅 `/task4_planner_node/current_pose` 作为实时位置输入。
-  - 位姿适配器测试 4/4 通过；Core 子状态机、状态编码与通信测试 18/18 通过。
+  - 位姿适配器测试通过；Core 子状态机、progress 接口与通信测试全部通过。
 - [x] 清理 Core 不需要的旧复杂动态避碰演示和安全距离监视器
   - 已移除二维回放脚本、视频、摘要和独立动态安全监视节点。
   - 已移除上一阶段动态 planner、旧 supervisor、moving-object 接口和相关测试。
@@ -48,20 +48,21 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → RESUMED
   - 按 `TASK4.pdf` 实现 checkpoint、ACK、直达目标点、ready 和 resume 记录。
   - Task4 不保存、不恢复原任务航路；主规划器负责原任务生命周期。
-  - 纯 Python 子状态机测试已覆盖主状态转移；状态/错误编码测试已覆盖主 FSM 的简单 JSON 契约。
+  - 纯 Python 子状态机测试已覆盖主状态转移；ROS 测试已覆盖 Task3 风格的简单 progress JSON 契约。
 - [x] 接入 Core 任务目标 GPS 点，并转换为本地 NED 目标
   - `GpsReference` 使用 WAM-V 首个 GPS fix 建立局部原点。
   - `TASK4_BEGIN.position.latitude/longitude` 转为 NED 目标。
 - [x] 生成“直达目标点”的简单 setpoint
-- [x] 到达目标点后发布 `TASK4_READY`
+- [x] 到达目标点后发布最终 progress `TASK4_FINISH`
 - [x] 接收主规划器的 resume 指令并交回控制权
   - `task4_core_node` 已接入 `/tongji_mrl/twave/task_cmd`、`checkpoint`、`progress`。
 - [x] 添加最低限度的停止/越界保护
   - 目标超过最大直达距离时拒绝 ACK；默认上限 1000 m，可配置。
-- [x] 完成 Task 4 状态与错误上报编码
-  - 按主状态机实际接口使用简单 JSON 进度：`TASK4_ACK`、`TASK4_TRANSIT`、
-    `TASK4_READY`、`TASK4_RESUMED`。
-  - `TASK4_ERROR` 使用扁平 `error.code`，不再要求主状态机解析 Task 3 的 14-bit 状态字。
+- [x] 简化 Task 4 progress 上报
+  - 已删除独立状态码、错误码目录和编码模块。
+  - 参考 Task3 子状态机边界，progress 使用
+    `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`，最终值固定为 `TASK4_FINISH`。
+  - 异常上报 `TASK4_ERROR` 和普通错误字符串，不再查错误码目录。
   - 已兼容主状态机的 `ASSISTANCE_REQUEST`、`READINESS_CONFIRM`、`TASK4_BEGIN` 和 `resume`。
 - [x] 在 VRX 中完成 Core 闭环验证并记录状态
   - 真实 WAM-V 使用约 8 m 非零距离目标运行，控制器日志显示距离从

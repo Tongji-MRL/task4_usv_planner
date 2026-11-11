@@ -24,19 +24,19 @@ Orin Core executor、VRX 专用控制器和当前尚未确认的实船控制接�
 发布 OCS 可直接接收的 `ack` 和 `task_report` 信封；`report_topic` 保留官方
 形状 JSON，便于仿真和抓包检查。实际 MQTT/protobuf 传输仍由 OCS 负责。
 
-状态和错误上报位于 `task4_usv_planner/task4_status_codec.py`，采用主状态机
-直接处理的简单 JSON 表：正常流程只使用 `TASK4_ACK`、`TASK4_TRANSIT`、
-`TASK4_READY`、`TASK4_RESUMED`，正常消息的 `error` 为 `null`；错误使用一个
-扁平的字符串 `error.code`，不再依赖 Task 3 的 14-bit 拼接状态字。ROS 节点
-同时兼容主状态机的 `ASSISTANCE_REQUEST`、`READINESS_CONFIRM`，以及主状态机
-发给 USV 的 `TASK4_BEGIN`、`resume`。
+Task4 不再使用独立状态码或错误编码表。参考 Task3 子状态机的 ROS 边界，progress
+只使用小 JSON，不发送 `status_code/status_bits`。流程为
+`TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`；异常时发布 `TASK4_ERROR`，`error` 只放
+可读字符串，不查错误码表。内部的 `TASK4_ACK/TRANSIT/TASK4_READY` 仍是控制与安全门
+使用的本地状态。节点同时兼容主状态机的 `ASSISTANCE_REQUEST`、
+`READINESS_CONFIRM`，以及主状态机发给 USV 的 `TASK4_BEGIN`、`resume`。
 
-| 字段 | 正常值 | 作用 |
+| 字段 | 值 | 作用 |
 | --- | --- | --- |
+| `vehicle` | `usv` | 标识 USV progress 来源 |
 | `task` | `TASK4` | 主状态机路由任务 |
-| `progress` | `TASK4_ACK` / `TASK4_TRANSIT` / `TASK4_READY` / `TASK4_RESUMED` | 主状态机判断流程 |
-| `error` | `null` | 正常；异常时为 `{ "code": "...", "detail": "..." }` |
-| `command` | `null` | 保留 JSON 接口兼容，不参与进度判断 |
+| `progress` | `TASK4_ACK` / `TASK4_TRANSIT` / `TASK4_FINISH` / `TASK4_ERROR` | Task3 风格的 Task4 对外进度；最终值固定为 `TASK4_FINISH` |
+| `error` | `null` 或普通字符串 | 正常为 `null`；异常只保留可读原因，不使用编码表 |
 
 ## Core 航行避障
 

@@ -15,17 +15,14 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import String
 
 from task4_usv_planner import (
-    CommonError,
     CoreCheckpoint,
     CorePlannerConfig,
     CoreTask4Begin,
     GpsReference,
     Pose2D,
-    Task4Step,
     Task4CoreStateMachine,
     Task4CommunicationError,
     Task4CommunicationSession,
-    encode_progress,
     parse_assistance_request,
     parse_readiness_confirm,
     normalize_main_fsm_command,
@@ -162,19 +159,10 @@ class Task4CoreNode(Node):
             elif payload.get("command") == "resume":
                 self._handle_resume(payload)
             else:
-                self._publish_error(
-                    "unsupported Task4 command",
-                    error=CommonError.INVALID_INPUT,
-                    detail_code="COMMAND_TYPE_UNSUPPORTED",
-                    command_seq=_optional_command_seq(payload),
-                )
+                self._publish_failure("unsupported Task4 command")
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             self.get_logger().error(f"Rejected Task4 task_cmd: {exc}")
-            self._publish_error(
-                str(exc),
-                error=CommonError.INVALID_INPUT,
-                detail_code="MALFORMED_TASK_CMD",
-            )
+            self._publish_failure(str(exc))
 
     def _handle_official_command(self, payload: dict[str, Any]) -> None:
         """Handle the JSON bridge equivalent of the official RxCommand oneof."""
@@ -192,13 +180,7 @@ class Task4CoreNode(Node):
                 )
                 event = self._communication.accept_assistance(request)
                 if not event.accepted:
-                    self._publish_error(
-                        event.reason,
-                        error=CommonError.INVALID_INPUT,
-                        step=Task4Step.READY,
-                        detail_code="ASSISTANCE_REQUEST_REJECTED",
-                        command_seq=request.command_seq,
-                    )
+                    self._publish_failure(event.reason)
                     return
                 # The official Core requirement is an immediate IncidentAck;
                 # the actual begin waits until GPS and pose are available.
@@ -226,12 +208,7 @@ class Task4CoreNode(Node):
                 )
                 event = self._communication.accept_readiness_confirm(confirm)
                 if not event.accepted:
-                    self._publish_error(
-                        event.reason,
-                        error=CommonError.INVALID_INPUT,
-                        step=Task4Step.WAIT_RESUME,
-                        detail_code="READINESS_CONFIRM_REJECTED",
-                    )
+                    self._publish_failure(event.reason)
                     return
                 checkpoint = self._machine.snapshot().checkpoint
                 if checkpoint is None:
@@ -244,13 +221,7 @@ class Task4CoreNode(Node):
             raise Task4CommunicationError(f"unsupported official Task 4 command: {kind or 'missing type'}")
         except (KeyError, TypeError, ValueError, Task4CommunicationError) as exc:
             self.get_logger().error(f"Rejected official Task 4 command: {exc}")
-            self._publish_error(
-                str(exc),
-                error=CommonError.INVALID_INPUT,
-                step=Task4Step.READY,
-                detail_code="OFFICIAL_COMMAND_INVALID",
-                command_seq=_optional_command_seq(payload),
-            )
+            self._publish_failure(str(exc))
 
     def _try_start_pending_begin(self) -> None:
         if self._pending_begin is None or self._reference is None or self._current_pose is None:
@@ -284,27 +255,7 @@ class Task4CoreNode(Node):
             self._pending_begin = None
         except (KeyError, TypeError, ValueError) as exc:
             self.get_logger().error(f"Rejected TASK4_BEGIN: {exc}")
-            error = (
-                CommonError.TARGET_UNREACHABLE
-                if "maximum transit distance" in str(exc)
-                else CommonError.INVALID_INPUT
-            )
-            step = (
-                Task4Step.GO_TO_TARGET
-                if error == CommonError.TARGET_UNREACHABLE
-                else Task4Step.READY
-            )
-            self._publish_error(
-                str(exc),
-                error=error,
-                step=step,
-                detail_code=(
-                    "TARGET_UNREACHABLE"
-                    if error == CommonError.TARGET_UNREACHABLE
-                    else "TASK4_BEGIN_INVALID"
-                ),
-                command_seq=_optional_command_seq(command),
-            )
+            self._publish_failure(str(exc))
             self._pending_begin = None
 
     def _on_timer(self) -> None:
@@ -318,13 +269,7 @@ class Task4CoreNode(Node):
             self._handle_resume_values(str(payload["task"]), str(payload["progress"]))
         except (KeyError, TypeError, ValueError, RuntimeError) as exc:
             self.get_logger().error(f"Rejected Task4 resume: {exc}")
-            self._publish_error(
-                str(exc),
-                error=CommonError.RESUME_REJECTED,
-                step=Task4Step.WAIT_RESUME,
-                detail_code="RESUME_COMMAND_REJECTED",
-                command_seq=_optional_command_seq(payload),
-            )
+            self._publish_failure(str(exc))
 
     def _handle_resume_values(self, task: str, progress: str) -> None:
         snapshot = self._machine.receive_resume(task, progress)
@@ -360,29 +305,15 @@ class Task4CoreNode(Node):
 
     def _publish_snapshot(self, snapshot: Any) -> None:
         if snapshot.progress_to_report:
-            output = String()
-            output.data = json.dumps(
-                encode_progress(
-                    snapshot.progress_to_report,
-                    command_seq=snapshot.command_seq,
-                ),
-                ensure_ascii=False,
-            )
-            self._progress_publisher.publish(output)
-            if snapshot.progress_to_report == "TASK4_READY":
+            self._publish_progress(snapshot.progress_to_report)
+            if snapshot.progress_to_report == "TASK4_FINISH":
                 try:
                     report = self._communication.readiness_report(snapshot.command_seq)
                     self._publish_official(report)
                     self._publish_vehicle_task_report(report)
                 except (Task4CommunicationError, TypeError, ValueError) as exc:
                     self.get_logger().error(f"Unable to publish ReadinessReport: {exc}")
-                    self._publish_error(
-                        str(exc),
-                        error=CommonError.UNKNOWN_ERROR,
-                        step=Task4Step.TARGET_REACHED,
-                        detail_code="READINESS_REPORT_FAILED",
-                        command_seq=snapshot.command_seq,
-                    )
+                    self._publish_failure(str(exc))
         if snapshot.active_setpoint is not None:
             output = RosPose2D()
             output.x = snapshot.active_setpoint.x
@@ -397,9 +328,17 @@ class Task4CoreNode(Node):
             "reason": snapshot.reason,
             "resume_task": snapshot.resume_task,
             "resume_progress": snapshot.resume_progress,
-            "error": None,
         }, ensure_ascii=False)
         self._state_publisher.publish(state)
+
+    def _publish_progress(self, progress: str, *, error: str | None = None) -> None:
+        """Publish only the progress contract required by the main FSM."""
+
+        output = String()
+        output.data = json.dumps(
+            _progress_payload(progress, error=error), ensure_ascii=False
+        )
+        self._progress_publisher.publish(output)
 
     def _publish_official(self, payload: dict[str, Any]) -> None:
         output = String()
@@ -450,60 +389,35 @@ class Task4CoreNode(Node):
         )
         self._vehicle_report_publisher.publish(output)
 
-    def _publish_error(
-        self,
-        detail: str,
-        *,
-        error: str | CommonError,
-        step: str | Task4Step | None = None,
-        detail_code: str,
-        command_seq: int | None = None,
-    ) -> None:
-        """Publish the simple error object consumed by the main FSM."""
+    def _publish_failure(self, detail: str) -> None:
+        """Log diagnostics locally and expose failure only as progress."""
 
-        snapshot = self._machine.snapshot()
-        output = String()
-        output.data = json.dumps(
-            encode_progress(
-                "TASK4_ERROR",
-                command_seq=command_seq if command_seq is not None else snapshot.command_seq,
-                step=step if step is not None else _status_step(snapshot.state),
-                error=error,
-                detail=detail,
-                fault_source="task4_core_node",
-                detail_code=detail_code,
-            ),
-            ensure_ascii=False,
-        )
-        self._progress_publisher.publish(output)
+        self.get_logger().error(detail)
+        self._publish_progress("TASK4_ERROR", error=detail)
 
 def _progress_for_snapshot(snapshot: Any) -> str:
     return {
         CoreState.IDLE: "TASK4_IDLE",
         CoreState.TASK4_ACK: "TASK4_ACK",
         CoreState.TRANSIT: "TASK4_TRANSIT",
-        CoreState.TASK4_READY: "TASK4_READY",
+        CoreState.TASK4_READY: "TASK4_FINISH",
         CoreState.RESUMED: "TASK4_RESUMED",
     }[snapshot.state]
 
 
-def _status_step(state: CoreState) -> Task4Step:
+def _progress_payload(
+    progress: str, *, error: str | None = None
+) -> dict[str, str | None]:
+    if not isinstance(progress, str) or not progress:
+        raise ValueError("progress must be a non-empty string")
+    if error is not None and (not isinstance(error, str) or not error):
+        raise ValueError("error must be null or a non-empty string")
     return {
-        CoreState.IDLE: Task4Step.READY,
-        CoreState.TASK4_ACK: Task4Step.READY,
-        CoreState.TRANSIT: Task4Step.GO_TO_TARGET,
-        CoreState.TASK4_READY: Task4Step.TARGET_REACHED,
-        CoreState.RESUMED: Task4Step.RESUMING,
-    }[state]
-
-
-def _optional_command_seq(value: Any) -> int | None:
-    raw = None
-    if isinstance(value, dict):
-        raw = value.get("command_seq", value.get("seq"))
-    if isinstance(raw, bool) or not isinstance(raw, int) or raw <= 0:
-        return None
-    return raw
+        "vehicle": "usv",
+        "task": "TASK4",
+        "progress": progress,
+        "error": error,
+    }
 
 
 def _official_kind(payload: dict[str, Any]) -> str:

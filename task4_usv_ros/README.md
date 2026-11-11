@@ -72,13 +72,18 @@ ros2 run task4_usv_ros task4_pose_adapter_node
 Core 状态机、位姿适配器、反应式避障和 VRX 推进器控制器已经连通；正式系统接入时必须
 把避障决策和 setpoint 一起接到唯一实船控制边界，不能只替换 thrust topic 就视为完成。
 
-## 状态与错误编码
+## Progress 接口
 
-主状态机只读取 `task`、`progress` 和 `error`，所以 `/tongji_mrl/twave/progress`
-使用简单 JSON：正常流程为 `TASK4_ACK → TASK4_TRANSIT → TASK4_READY`，恢复后为
-`TASK4_RESUMED`，正常消息的 `error` 为 `null`。错误消息使用一个扁平的
-`error.code` 字符串，并可附带 `detail`、`step`、`recovery_action` 等诊断字段；
-不再发送 Task 3 的 14-bit `status_code/status_bits`。
+Task4 已移除独立状态码、错误码目录和编码模块。参考 Task3 子状态机的 FSM 边界，
+`/tongji_mrl/twave/progress` 只发布：
+
+```json
+{"vehicle":"usv","task":"TASK4","progress":"TASK4_TRANSIT","error":null}
+```
+
+正常顺序是 `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`，最终值固定为
+`TASK4_FINISH`。异常发布 `TASK4_ERROR`，`error` 是普通可读字符串，不是编码。
+内部状态仍供控制器和避障安全门使用，完成后等待主状态机明确恢复原任务，不自动恢复。
 
 通信适配器支持主状态机的 `ASSISTANCE_REQUEST` / `READINESS_CONFIRM`，并保留
 主状态机实际发给 USV 的 `TASK4_BEGIN` / `resume`。通信层仍会拒绝非 USV 目标、

@@ -10,13 +10,6 @@ from .core_state_machine import (
     CoreTask4Begin,
     Task4CoreStateMachine,
 )
-from .task4_status_codec import (
-    CommonError,
-    TASK4_ERROR_CATALOG_VERSION,
-    TASK4_ERROR_DEFINITIONS,
-    Task4Step,
-    encode_progress,
-)
 from .task4_communication import (
     AssistanceRequest,
     CommunicationEvent,
@@ -25,6 +18,7 @@ from .task4_communication import (
     Task4CommunicationSession,
     parse_assistance_request,
     parse_readiness_confirm,
+    normalize_main_fsm_command,
     normalize_ocs_command,
 )
 from .reactive_avoidance import (
@@ -45,11 +39,6 @@ __all__ = [
     "NEDPoint",
     "Pose2D",
     "Task4CoreStateMachine",
-    "CommonError",
-    "TASK4_ERROR_CATALOG_VERSION",
-    "TASK4_ERROR_DEFINITIONS",
-    "Task4Step",
-    "encode_progress",
     "AssistanceRequest",
     "CommunicationEvent",
     "ReadinessConfirm",
@@ -57,6 +46,7 @@ __all__ = [
     "Task4CommunicationSession",
     "parse_assistance_request",
     "parse_readiness_confirm",
+    "normalize_main_fsm_command",
     "normalize_ocs_command",
     "AvoidanceAction",
     "ReactiveAvoidanceConfig",

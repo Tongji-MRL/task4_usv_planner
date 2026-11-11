@@ -32,10 +32,12 @@ class Task4CoreStateMachineTests(unittest.TestCase):
 
     def test_transit_reaches_target_and_reports_ready(self):
         self.machine.receive_task4_begin(self.command, self.checkpoint, self.current)
-        self.assertEqual(self.machine.tick(self.current).state, CoreState.TRANSIT)
+        transit = self.machine.tick(self.current)
+        self.assertEqual(transit.state, CoreState.TRANSIT)
+        self.assertEqual(transit.progress_to_report, "TASK4_TRANSIT")
         ready = self.machine.tick(Pose2D(30.0, 40.0, 1.0))
         self.assertEqual(ready.state, CoreState.TASK4_READY)
-        self.assertEqual(ready.progress_to_report, "TASK4_READY")
+        self.assertEqual(ready.progress_to_report, "TASK4_FINISH")
 
     def test_resume_only_records_main_planner_instruction(self):
         self.machine.receive_task4_begin(self.command, self.checkpoint, self.current)
