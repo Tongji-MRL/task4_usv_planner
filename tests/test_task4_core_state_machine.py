@@ -43,11 +43,11 @@ class Task4CoreStateMachineTests(unittest.TestCase):
         self.machine.receive_task4_begin(self.command, self.checkpoint, self.current)
         self.machine.tick(self.current)
         self.machine.tick(Pose2D(30.0, 40.0, 0.0))
-        resumed = self.machine.receive_resume("TASK1", "SEARCH_TARGET")
-        self.assertEqual(resumed.state, CoreState.RESUMED)
-        self.assertEqual(resumed.resume_task, "TASK1")
-        self.assertEqual(resumed.resume_progress, "SEARCH_TARGET")
-        self.assertIsNone(resumed.active_setpoint)
+        finished = self.machine.receive_resume("TASK1", "SEARCH_TARGET")
+        self.assertEqual(finished.state, CoreState.FINISHED)
+        self.assertEqual(finished.resume_task, "TASK1")
+        self.assertEqual(finished.resume_progress, "SEARCH_TARGET")
+        self.assertIsNone(finished.active_setpoint)
 
     def test_resume_before_ready_is_rejected(self):
         with self.assertRaises(RuntimeError):

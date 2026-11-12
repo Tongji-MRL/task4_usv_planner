@@ -18,7 +18,7 @@ class CoreState(str, Enum):
     TASK4_ACK = "TASK4_ACK"
     TRANSIT = "TRANSIT"
     TASK4_READY = "TASK4_READY"
-    RESUMED = "RESUMED"
+    FINISHED = "FINISHED"
 
 
 @dataclass(frozen=True)
@@ -171,7 +171,7 @@ class Task4CoreStateMachine:
         self._resume_task = task
         self._resume_progress = progress
         self._setpoint = None
-        self._state = CoreState.RESUMED
+        self._state = CoreState.FINISHED
         self._reason = "resume command recorded; main planner owns continuation"
         return self.snapshot()
 

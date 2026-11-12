@@ -27,7 +27,7 @@ ros2 run task4_usv_ros task4_core_node
 `task4_controller_node` 消费 `/task4_core/setpoint` 和实时 NED 位姿，向
 `/wamv/thrusters/left/thrust`、`/wamv/thrusters/right/thrust` 发布限幅后的
 差分推力。只有 Core 处于 `TASK4_ACK` 或 `TRANSIT` 时才驱动；到达停止半径、
-输入超时、`TASK4_READY` 或 `RESUMED` 时会把左右推力清零。收到有效避障决策后，
+输入超时、`TASK4_READY` 或 `FINISHED` 时会把左右推力清零。收到有效避障决策后，
 `HOLD` 清零推力，`REPLAN` 降速并按锁定方向转向；避障决策一旦接入，后续超时也会停车。
 
 ```bash
@@ -83,7 +83,8 @@ Task4 已移除独立状态码、错误码目录和编码模块。参考 Task3 �
 
 正常顺序是 `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`，最终值固定为
 `TASK4_FINISH`。异常发布 `TASK4_ERROR`，`error` 是普通可读字符串，不是编码。
-内部状态仍供控制器和避障安全门使用，完成后等待主状态机明确恢复原任务，不自动恢复。
+内部状态仍供控制器和避障安全门使用。到达目标后进入 `TASK4_READY` 等待恢复指令，
+收到主状态机明确恢复指令后进入最终状态 `FINISHED`，不会自动恢复原任务。
 
 通信适配器支持主状态机的 `ASSISTANCE_REQUEST` / `READINESS_CONFIRM`，并保留
 主状态机实际发给 USV 的 `TASK4_BEGIN` / `resume`。通信层仍会拒绝非 USV 目标、

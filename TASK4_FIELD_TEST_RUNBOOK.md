@@ -15,7 +15,7 @@
 当前 Orin 的 `usv_task4_executor` 已实现：
 
 - `AssistanceRequest -> IncidentAck -> ReadinessReport -> ReadinessConfirm`；
-- `IDLE -> TASK4_ACK -> TRANSIT -> TASK4_READY -> RESUMED`；
+- `IDLE -> TASK4_ACK -> TRANSIT -> TASK4_READY -> FINISHED`；
 - GPS 目标转本地 NED；
 - checkpoint 和简化 progress 上报；
 - `/task4_core/setpoint` 目标输出；
@@ -41,7 +41,7 @@ Task4 没有泵、夹爪或喷射执行机构。
 | --- | --- | --- | --- |
 | P0 | 网络、版本、非控制测试 | 5-10 分钟 | SSH 正常、正式包正确、全部测试通过 |
 | P0 | 真实 `/fix` 和 NED | 5 分钟 | 数据有效、格式正确、静止不明显漂移 |
-| P0 | 隔离 topic 的完整 Core 流程 | 10 分钟 | ACK、READY、Confirm、RESUMED 全部出现 |
+| P0 | 隔离 topic 的完整 Core 流程 | 10 分钟 | ACK、READY、Confirm、FINISHED 全部出现 |
 | P1 | 默认 topic + OCS/地面/移动端 | 10-15 分钟 | 双向命令和结果可见，checkpoint 非 UNKNOWN |
 | P2 | 控制接入判定 | 2 分钟 | 明确“已接入可测”或“未接入，停止” |
 | 可选 | 人工遥控 1-2 m 定位方向检查 | 3 分钟 | north/east 方向正确 |
@@ -307,7 +307,7 @@ ros2 topic pub --once /task4_test/task_cmd std_msgs/msg/String \
   "{data: '{\"seq\":91002,\"body\":{\"type\":\"readiness_confirm\",\"report_seq\":REPORT_SEQ,\"vehicle_id\":\"T-Wave\"}}'}"
 ```
 
-期望 state 进入 `RESUMED`，恢复字段为 `TASK1/FIELD_TEST`。
+期望 state 进入 `FINISHED`，恢复字段为 `TASK1/FIELD_TEST`。
 
 这一项通过后，P0 完成。按 `Ctrl+C` 停止 R2 和 R3。状态机没有 reset 命令，每轮新测试都
 应重启 executor，并使用新的 command seq。
@@ -359,7 +359,7 @@ ros2 topic echo /task4_core/state
 3. Orin 必须发布 ACK、checkpoint、READY 和 readiness report；
 4. 地面端和移动端必须能看到 ACK/READY；
 5. 地面端/OCS 使用实际 `report_seq` 发送 ReadinessConfirm；
-6. Orin state 必须进入 `RESUMED`；
+6. Orin state 必须进入 `FINISHED`；
 7. 地面端和移动端必须看到最终状态。
 
 现场人员不要在默认 `/task_cmd` 上手写模拟正式命令。若没有 OCS，就把本阶段标记为“未测”，
@@ -441,7 +441,7 @@ ros2 topic info /task4_core/setpoint --verbose
 
 - [ ] Orin 网络、SSH、正式包和当前全部非控制测试是否通过？
 - [ ] `/fix` 和共享 NED 是否真实、稳定、格式正确？
-- [ ] 隔离 Core 是否完成 ACK -> READY -> Confirm -> RESUMED？
+- [ ] 隔离 Core 是否完成 ACK -> READY -> Confirm -> FINISHED？
 - [ ] OCS、地面端、移动端是否完成双向闭环，checkpoint 是否有效？
 - [ ] `/task4_core/setpoint` 是否存在已确认的唯一实船控制订阅者？
 

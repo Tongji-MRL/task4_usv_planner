@@ -401,7 +401,7 @@ def _progress_for_snapshot(snapshot: Any) -> str:
         CoreState.TASK4_ACK: "TASK4_ACK",
         CoreState.TRANSIT: "TASK4_TRANSIT",
         CoreState.TASK4_READY: "TASK4_FINISH",
-        CoreState.RESUMED: "TASK4_RESUMED",
+        CoreState.FINISHED: "TASK4_FINISH",
     }[snapshot.state]
 
 

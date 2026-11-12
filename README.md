@@ -27,8 +27,9 @@ Orin Core executor、VRX 专用控制器和当前尚未确认的实船控制接�
 Task4 不再使用独立状态码或错误编码表。参考 Task3 子状态机的 ROS 边界，progress
 只使用小 JSON，不发送 `status_code/status_bits`。流程为
 `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`；异常时发布 `TASK4_ERROR`，`error` 只放
-可读字符串，不查错误码表。内部的 `TASK4_ACK/TRANSIT/TASK4_READY` 仍是控制与安全门
-使用的本地状态。节点同时兼容主状态机的 `ASSISTANCE_REQUEST`、
+可读字符串，不查错误码表。内部状态机为
+`IDLE → TASK4_ACK → TRANSIT → TASK4_READY → FINISHED`，其中 `TASK4_READY` 等待
+主状态机恢复指令，收到后进入最终状态 `FINISHED`。节点同时兼容主状态机的 `ASSISTANCE_REQUEST`、
 `READINESS_CONFIRM`，以及主状态机发给 USV 的 `TASK4_BEGIN`、`resume`。
 
 | 字段 | 值 | 作用 |

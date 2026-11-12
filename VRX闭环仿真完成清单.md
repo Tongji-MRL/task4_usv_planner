@@ -12,7 +12,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [ ] 现场网络、SSH/tmux、版本和正式包来源通过手册 P0 检查
 - [ ] 实船 `/fix` 与 `/tongji_mrl/twave/ned_position` 的格式、原点、方向和稳定性确认
 - [ ] Orin 上使用隔离 topic 完成无控制 Core 全链和错误上报验证
-- [ ] OCS、总状态机、地面端、移动端的 ACK/READY/Confirm/RESUMED 闭环验证
+- [ ] OCS、总状态机、地面端、移动端的 ACK/READY/Confirm/FINISHED 闭环验证
 - [ ] 正式 checkpoint 来源、`team_id`、`run_id` 和 vehicle ID 配置确认
 - [ ] `/task4_core/setpoint` 到实船控制器/goto 的接口、唯一控制发布者和反馈闭环确认
 - [ ] 实船 LaserScan 的 frame、0 rad 前向、左右方向、距离单位和更新率确认
@@ -45,7 +45,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
   - 已移除二维回放脚本、视频、摘要和独立动态安全监视节点。
   - 已移除上一阶段动态 planner、旧 supervisor、moving-object 接口和相关测试。
   - 旧动态目标预测和复杂绕行链路不再参与 Core；近场反应式安全层独立实现。
-- [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → RESUMED
+- [x] 定义 Core 子状态机：IDLE → TASK4_ACK → TRANSIT → TASK4_READY → FINISHED
   - 按 `TASK4.pdf` 实现 checkpoint、ACK、直达目标点、ready 和 resume 记录。
   - Task4 不保存、不恢复原任务航路；主规划器负责原任务生命周期。
   - 纯 Python 子状态机测试已覆盖主状态转移；ROS 测试已覆盖 Task3 风格的简单 progress JSON 契约。
