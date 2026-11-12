@@ -26,7 +26,7 @@ Orin Core executor、VRX 专用控制器和当前尚未确认的实船控制接�
 
 Task4 不再使用独立状态码或错误编码表。参考 Task3 子状态机的 ROS 边界，progress
 只使用小 JSON，不发送 `status_code/status_bits`。流程为
-`TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`；异常时发布 `TASK4_ERROR`，`error` 只放
+`TASK4_ACK → TASK4_TRANSIT → FINISHED`；异常时发布 `TASK4_ERROR`，`error` 只放
 可读字符串，不查错误码表。内部状态机为
 `IDLE → TASK4_ACK → TRANSIT → TASK4_READY → FINISHED`，其中 `TASK4_READY` 等待
 主状态机恢复指令，收到后进入最终状态 `FINISHED`。节点同时兼容主状态机的 `ASSISTANCE_REQUEST`、
@@ -36,7 +36,7 @@ Task4 不再使用独立状态码或错误编码表。参考 Task3 子状态机�
 | --- | --- | --- |
 | `vehicle` | `usv` | 标识 USV progress 来源 |
 | `task` | `TASK4` | 主状态机路由任务 |
-| `progress` | `TASK4_ACK` / `TASK4_TRANSIT` / `TASK4_FINISH` / `TASK4_ERROR` | Task3 风格的 Task4 对外进度；最终值固定为 `TASK4_FINISH` |
+| `progress` | `TASK4_ACK` / `TASK4_TRANSIT` / `FINISHED` / `TASK4_ERROR` | Task3 风格的 Task4 对外进度；最终值固定为 `FINISHED` |
 | `error` | `null` 或普通字符串 | 正常为 `null`；异常只保留可读原因，不使用编码表 |
 
 ## Core 航行避障

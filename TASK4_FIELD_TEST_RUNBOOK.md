@@ -292,7 +292,7 @@ ros2 topic pub --once /task4_test/task_cmd std_msgs/msg/String \
 
 1. `incident_ack`；
 2. checkpoint 为 `TASK1/FIELD_TEST`；
-3. progress 依次出现 `TASK4_ACK`、`TASK4_TRANSIT` 和最终的 `TASK4_FINISH`；
+3. progress 依次出现 `TASK4_ACK`、`TASK4_TRANSIT` 和最终的 `FINISHED`；
 4. state 经过 `TASK4_ACK -> TRANSIT -> TASK4_READY`；
 5. task4_report 出现 `readiness`。
 

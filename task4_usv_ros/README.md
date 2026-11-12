@@ -81,8 +81,8 @@ Task4 已移除独立状态码、错误码目录和编码模块。参考 Task3 �
 {"vehicle":"usv","task":"TASK4","progress":"TASK4_TRANSIT","error":null}
 ```
 
-正常顺序是 `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`，最终值固定为
-`TASK4_FINISH`。异常发布 `TASK4_ERROR`，`error` 是普通可读字符串，不是编码。
+正常顺序是 `TASK4_ACK → TASK4_TRANSIT → FINISHED`，最终值固定为
+`FINISHED`。异常发布 `TASK4_ERROR`，`error` 是普通可读字符串，不是编码。
 内部状态仍供控制器和避障安全门使用。到达目标后进入 `TASK4_READY` 等待恢复指令，
 收到主状态机明确恢复指令后进入最终状态 `FINISHED`，不会自动恢复原任务。
 

@@ -157,8 +157,8 @@ class Task4CoreStateMachine:
         elif self._state == CoreState.TRANSIT and self._target is not None:
             if _distance_xy(current_pose, self._target) <= self._config.arrival_radius_m:
                 self._state = CoreState.TASK4_READY
-                self._progress_to_report = "TASK4_FINISH"
-                self._reason = "target reached; TASK4_FINISH reported"
+                self._progress_to_report = "FINISHED"
+                self._reason = "target reached; FINISHED reported"
         return self.snapshot()
 
     def receive_resume(self, task: str, progress: str) -> CoreSnapshot:

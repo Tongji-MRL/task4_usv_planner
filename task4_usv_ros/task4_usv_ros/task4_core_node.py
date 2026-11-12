@@ -306,7 +306,7 @@ class Task4CoreNode(Node):
     def _publish_snapshot(self, snapshot: Any) -> None:
         if snapshot.progress_to_report:
             self._publish_progress(snapshot.progress_to_report)
-            if snapshot.progress_to_report == "TASK4_FINISH":
+            if snapshot.progress_to_report == "FINISHED":
                 try:
                     report = self._communication.readiness_report(snapshot.command_seq)
                     self._publish_official(report)
@@ -400,8 +400,8 @@ def _progress_for_snapshot(snapshot: Any) -> str:
         CoreState.IDLE: "TASK4_IDLE",
         CoreState.TASK4_ACK: "TASK4_ACK",
         CoreState.TRANSIT: "TASK4_TRANSIT",
-        CoreState.TASK4_READY: "TASK4_FINISH",
-        CoreState.FINISHED: "TASK4_FINISH",
+        CoreState.TASK4_READY: "FINISHED",
+        CoreState.FINISHED: "FINISHED",
     }[snapshot.state]
 
 

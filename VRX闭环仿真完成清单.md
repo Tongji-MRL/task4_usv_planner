@@ -53,7 +53,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
   - `GpsReference` 使用 WAM-V 首个 GPS fix 建立局部原点。
   - `TASK4_BEGIN.position.latitude/longitude` 转为 NED 目标。
 - [x] 生成“直达目标点”的简单 setpoint
-- [x] 到达目标点后发布最终 progress `TASK4_FINISH`
+- [x] 到达目标点后发布最终 progress `FINISHED`
 - [x] 接收主规划器的 resume 指令并交回控制权
   - `task4_core_node` 已接入 `/tongji_mrl/twave/task_cmd`、`checkpoint`、`progress`。
 - [x] 添加最低限度的停止/越界保护
@@ -61,7 +61,7 @@ Orin `usv_task4_executor` 接口为准，VRX 推进器控制器不得直接用�
 - [x] 简化 Task 4 progress 上报
   - 已删除独立状态码、错误码目录和编码模块。
   - 参考 Task3 子状态机边界，progress 使用
-    `TASK4_ACK → TASK4_TRANSIT → TASK4_FINISH`，最终值固定为 `TASK4_FINISH`。
+    `TASK4_ACK → TASK4_TRANSIT → FINISHED`，最终值固定为 `FINISHED`。
   - 异常上报 `TASK4_ERROR` 和普通错误字符串，不再查错误码目录。
   - 已兼容主状态机的 `ASSISTANCE_REQUEST`、`READINESS_CONFIRM`、`TASK4_BEGIN` 和 `resume`。
 - [x] 在 VRX 中完成 Core 闭环验证并记录状态

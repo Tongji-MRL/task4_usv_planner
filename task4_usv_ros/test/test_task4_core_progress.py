@@ -6,11 +6,11 @@ from task4_usv_ros.task4_core_node import _progress_payload
 class Task4CoreProgressTests(unittest.TestCase):
     def test_finish_payload_contains_only_progress_contract(self):
         self.assertEqual(
-            _progress_payload("TASK4_FINISH"),
+            _progress_payload("FINISHED"),
             {
                 "vehicle": "usv",
                 "task": "TASK4",
-                "progress": "TASK4_FINISH",
+                "progress": "FINISHED",
                 "error": None,
             },
         )
